@@ -1,0 +1,9 @@
+aiohttp
+dnspython
+rich
+typer
+ipwhois
+tldextract
+beautifulsoup4
+pytest
+pytest-asyncio
