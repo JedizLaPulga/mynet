@@ -82,6 +82,28 @@ class OutputHandler:
                 elif "error" in ssl_res:
                      self.console.print(f"[red]SSL Scan Error: {ssl_res['error']}[/red]")
 
+            # WHOIS Table
+            if "Whois Scanner" in scans:
+                whois_res = scans["Whois Scanner"]
+                if whois_res and "error" not in whois_res:
+                    table = Table(title="WHOIS / ASN Info", show_header=True)
+                    table.add_column("Field", style="cyan")
+                    table.add_column("Value", style="green")
+                    
+                    table.add_row("IP Address", str(whois_res.get("query", "N/A")))
+                    table.add_row("ASN", str(whois_res.get("asn", "N/A")))
+                    table.add_row("ASN Desc", str(whois_res.get("asn_description", "N/A")))
+                    table.add_row("Country", str(whois_res.get("asn_country_code", "N/A")))
+                    
+                    network = whois_res.get("network", {})
+                    if network:
+                         table.add_row("Network Name", str(network.get("name", "N/A")))
+                         table.add_row("CIDR", str(network.get("cidr", "N/A")))
+
+                    self.console.print(table)
+                elif "error" in whois_res:
+                     self.console.print(f"[red]WHOIS Scan Error: {whois_res['error']}[/red]")
+
             
             # Ports Table
             if "Port Scanner" in scans:
