@@ -1,12 +1,11 @@
 import asyncio
 import importlib
-from typing import List
+import pkgutil
+from typing import List, Dict, Any
 from .config import Config
 from .input_parser import Target
 from ..modules.base import BaseModule
-from ..modules.dns_scanner import DNSScanner
-from ..modules.port_scanner import PortScanner
-from ..modules.http_scanner import HTTPScanner
+import mynet.modules
 
 class Runner:
     def __init__(self, config: Config):
@@ -15,29 +14,23 @@ class Runner:
 
     def _load_modules(self) -> List[BaseModule]:
         modules = []
-        # Import standard modules
-        # We can scan the directory, but for simplicity in this environment, 
-        # let's just use importlib to import known modules or walk pkg.
-        # To be robust and "plugin-like", walking is better.
-        import pkgutil
-        import importlib
-        import mynet.modules
         
         # Iterate over all modules in mynet.modules package
         package = mynet.modules
         prefix = package.__name__ + "."
         
-        for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
-            if name.endswith("base"): continue
-            try:
-                mod = importlib.import_module(name)
-                # Find BaseModule subclasses
-                for attr_name in dir(mod):
-                    attr = getattr(mod, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, BaseModule) and attr is not BaseModule:
-                        modules.append(attr(self.config))
-            except Exception as e:
-                print(f"Failed to load module {name}: {e}")
+        if hasattr(package, "__path__"):
+             for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
+                if name.endswith("base"): continue
+                try:
+                    mod = importlib.import_module(name)
+                    # Find BaseModule subclasses
+                    for attr_name in dir(mod):
+                        attr = getattr(mod, attr_name)
+                        if isinstance(attr, type) and issubclass(attr, BaseModule) and attr is not BaseModule:
+                            modules.append(attr(self.config))
+                except Exception as e:
+                    print(f"Failed to load module {name}: {e}")
                 
         return modules
 
@@ -48,12 +41,7 @@ class Runner:
         """
         results = {}
         
-        # We can run targets in parallel, and modules in parallel per target?
-        # Or simplistic: For each target, run all modules concurrently.
-        
-        # Create a semaphore to limit concurrent target scans if we had many targets.
-        # But for now let's just use gather.
-        
+        # We can run targets in parallel
         tasks = []
         for target in targets:
             tasks.append(self._scan_target(target))
