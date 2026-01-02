@@ -109,12 +109,22 @@ class OutputHandler:
             if "Port Scanner" in scans:
                 port_res = scans["Port Scanner"]
                 open_ports = port_res.get("open_ports", [])
+                details = port_res.get("details", [])
+                
                 if open_ports:
                     table = Table(title=f"Open Ports (Scanned {port_res.get('scanned_count')} ports)", show_header=True)
                     table.add_column("Port", style="green")
                     table.add_column("State", style="bold green")
+                    table.add_column("Service/Banner", style="dim white")
+                    
+                    # Create a lookup for banners
+                    banner_map = {d['port']: d.get('banner') for d in details}
+                    
                     for p in open_ports:
-                        table.add_row(str(p), "OPEN")
+                        banner = banner_map.get(p)
+                        banner_str = banner[:50] + "..." if banner and len(banner) > 50 else banner
+                        table.add_row(str(p), "OPEN", banner_str if banner_str else "")
+                        
                     self.console.print(table)
                 else:
                     self.console.print("[yellow]No open ports found (in scanned range).[/yellow]")

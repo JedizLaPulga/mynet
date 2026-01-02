@@ -12,9 +12,22 @@ class PortScanner(BaseModule):
         try:
             conn = asyncio.open_connection(ip, port)
             reader, writer = await asyncio.wait_for(conn, timeout=timeout)
+            
+            # Banner Grabbing
+            banner = None
+            try:
+                # Give the server a moment to send a banner (common for SSH, FTP, SMTP)
+                # Shorter timeout for reading than connecting
+                data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                if data:
+                    banner = data.decode('utf-8', errors='ignore').strip()
+            except (asyncio.TimeoutError, Exception):
+                # If reading fails or times out, we still know the port is open
+                pass
+
             writer.close()
             await writer.wait_closed()
-            return port, True, None
+            return port, True, banner
         except asyncio.TimeoutError:
             return port, False, "Timeout"
         except ConnectionRefusedError:
@@ -24,17 +37,11 @@ class PortScanner(BaseModule):
 
     async def run(self, target: Target) -> dict:
         target_ip = target.ip
-        # If we only have a domain, we need to resolve it first? 
-        # But the Parser might not have resolved it if it wasn't an IP input.
-        # In a real app, the runner might handle resolution, or we do it here.
         
         if not target_ip:
             try:
                 loop = asyncio.get_running_loop()
-                # Use default resolver
                 addr_info = await loop.getaddrinfo(target.host, None)
-                # addr_info[0] is (family, type, proto, canonname, sockaddr)
-                # sockaddr is (address, port)
                 if addr_info:
                      target_ip = addr_info[0][4][0]
                 else:
@@ -42,7 +49,7 @@ class PortScanner(BaseModule):
             except Exception as e:
                 return {"error": f"Could not resolve host: {e}"}
 
-        open_ports = []
+        open_ports_data = [] # List of dicts: {'port': 80, 'banner': '...'}
         tasks = []
         timeout = self.config.timeout or 2
         
@@ -58,8 +65,16 @@ class PortScanner(BaseModule):
         
         results = await asyncio.gather(*tasks)
         
-        for port, is_open, reason in results:
+        # Collect only open ports
+        open_ports_list = []
+        for port, is_open, banner in results:
             if is_open:
-                open_ports.append(port)
+                open_ports_list.append(port)
+                open_ports_data.append({"port": port, "banner": banner})
         
-        return {"open_ports": open_ports, "scanned_count": len(tasks), "target_ip": target_ip}
+        return {
+            "open_ports": open_ports_list, 
+            "details": open_ports_data,
+            "scanned_count": len(tasks), 
+            "target_ip": target_ip
+        }
