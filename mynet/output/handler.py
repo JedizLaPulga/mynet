@@ -58,6 +58,30 @@ class OutputHandler:
                             found = True
                     if found:
                         self.console.print(table)
+
+            # SSL Table
+            if "SSL Scanner" in scans:
+                ssl_res = scans["SSL Scanner"]
+                if ssl_res and "error" not in ssl_res and ssl_res:
+                    table = Table(title="SSL Certificate", show_header=True)
+                    table.add_column("Field", style="yellow")
+                    table.add_column("Value", style="white")
+                    
+                    table.add_row("Subject", ssl_res.get("subject", "N/A"))
+                    table.add_row("Issuer", ssl_res.get("issuer", "N/A"))
+                    table.add_row("Valid From", ssl_res.get("valid_from", "N/A"))
+                    table.add_row("Valid To", ssl_res.get("valid_to", "N/A"))
+                    
+                    sans = ssl_res.get("sans", [])
+                    if sans:
+                        # Limit SANs display if too many
+                        san_str = ", ".join(sans[:5]) + (f" (+{len(sans)-5} more)" if len(sans) > 5 else "")
+                        table.add_row("SANs", san_str)
+                        
+                    self.console.print(table)
+                elif "error" in ssl_res:
+                     self.console.print(f"[red]SSL Scan Error: {ssl_res['error']}[/red]")
+
             
             # Ports Table
             if "Port Scanner" in scans:

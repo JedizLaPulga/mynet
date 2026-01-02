@@ -20,6 +20,7 @@ class TestRunner(unittest.TestCase):
         self.assertIn("DNS Scanner", module_names)
         self.assertIn("Port Scanner", module_names)
         self.assertIn("HTTP Scanner", module_names)
+        self.assertIn("SSL Scanner", module_names)
 
     def test_run_scan_structure(self):
         """Test the run_scan method returns the correct structure."""
