@@ -43,7 +43,8 @@ class OutputHandler:
             "Tech Fingerprinter": self._render_tech,
             "Dir Enumerator": self._render_dir,
             "Web Crawler": self._render_crawler,
-            "Traceroute Scanner": self._render_trace
+            "Traceroute Scanner": self._render_trace,
+            "Zone Transfer Scanner": self._render_axfr
         }
 
         for host, data in results.items(): 
@@ -323,6 +324,34 @@ class OutputHandler:
                 hop.get("rtt")
             )
         self.console.print(table)
+
+    def _render_axfr(self, data: Dict[str, Any]):
+        if "error" in data:
+            # Silence simple errors or show them? Usually AXFR fails is good news.
+            # self.console.print(f"[dim]Zone Transfer: {data['error']}[/dim]")
+            return
+
+        is_vuln = data.get("vulnerable", False)
+        ns_tested = data.get("nameservers_tested", [])
+        
+        title = "Zone Transfer (AXFR)"
+        if is_vuln:
+            self.console.print(Panel(
+                f"[bold red]VULNERABLE: Zone Transfer Successful![/bold red]\n"
+                f"Nameservers Tested: {len(ns_tested)}",
+                title=title, border_style="red"
+            ))
+            records = data.get("records", [])
+            if records:
+                table = Table(title="Leaked Records (Preview)", show_header=True)
+                table.add_column("Record", style="yellow")
+                for r in records[:10]:
+                    table.add_row(r)
+                if len(records) > 10:
+                    table.add_row(f"... {len(records)-10} more records")
+                self.console.print(table)
+        else:
+             self.console.print(f"[green]{title}: Secure (Tested {len(ns_tested)} NS)[/green]")
 
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
