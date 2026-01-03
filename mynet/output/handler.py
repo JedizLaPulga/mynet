@@ -39,7 +39,8 @@ class OutputHandler:
             "Whois Scanner": self._render_whois,
             "Port Scanner": self._render_ports,
             "HTTP Scanner": self._render_http,
-            "Subdomain Scanner": self._render_subdomains
+            "Subdomain Scanner": self._render_subdomains,
+            "Tech Fingerprinter": self._render_tech
         }
 
         for host, data in results.items(): 
@@ -185,6 +186,30 @@ class OutputHandler:
             table.add_row(f"... and {count - limit} more")
 
         self.console.print(table)
+
+
+    def _render_tech(self, data: Dict[str, Any]):
+        if not data: return
+        
+        # Data structure is {url: [ {name, version, source}, ... ]}
+        
+        for url, techs in data.items():
+            if not techs: continue
+            
+            table = Table(title=f"Technologies Detected at {url}", show_header=True)
+            table.add_column("Technology", style="cyan")
+            table.add_column("Version", style="green")
+            table.add_column("Source", style="dim")
+            
+            for t in techs:
+                ver = t.get("version")
+                table.add_row(
+                    t.get("name", "Unknown"), 
+                    ver if ver else "", 
+                    t.get("source", "")
+                )
+            self.console.print(table)
+
 
     def _render_http(self, data: Dict[str, Any]):
         if not data: return
