@@ -40,7 +40,8 @@ class OutputHandler:
             "Port Scanner": self._render_ports,
             "HTTP Scanner": self._render_http,
             "Subdomain Scanner": self._render_subdomains,
-            "Tech Fingerprinter": self._render_tech
+            "Tech Fingerprinter": self._render_tech,
+            "Dir Enumerator": self._render_dir
         }
 
         for host, data in results.items(): 
@@ -227,6 +228,30 @@ class OutputHandler:
                 table.add_row(url, status_str, info.get('title', ''), info.get('server', ''))
         self.console.print(table)
 
+
+    def _render_dir(self, data: Dict[str, Any]):
+        if not data: return
+        
+        for base, paths in data.items():
+            if not paths: continue
+            
+            table = Table(title=f"Paths Found on {base}", show_header=True)
+            table.add_column("Path", style="blue")
+            table.add_column("Status", style="bold")
+            table.add_column("Length", style="dim")
+            
+            for p in paths:
+                url = p.get("url", "")
+                # Show just the path part to save space, or full URL? Full URL is clearer.
+                # Let's show relative path if it starts with base
+                display_path = url.replace(base, "") if url.startswith(base) else url
+                
+                status = p.get("status")
+                s_style = "green" if status and status < 400 else "yellow" if status < 500 else "red"
+                
+                table.add_row(display_path, f"[{s_style}]{status}[/{s_style}]", str(p.get("length")))
+                
+            self.console.print(table)
 
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
