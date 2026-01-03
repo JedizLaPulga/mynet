@@ -38,7 +38,8 @@ class OutputHandler:
             "SSL Scanner": self._render_ssl,
             "Whois Scanner": self._render_whois,
             "Port Scanner": self._render_ports,
-            "HTTP Scanner": self._render_http
+            "HTTP Scanner": self._render_http,
+            "Subdomain Scanner": self._render_subdomains
         }
 
         for host, data in results.items(): 
@@ -156,6 +157,34 @@ class OutputHandler:
             self.console.print(table)
         else:
             self.console.print("[yellow]No open ports found (in scanned range).[/yellow]")
+
+    def _render_subdomains(self, data: Dict[str, Any]):
+        if "error" in data:
+             self.console.print(f"[red]Subdomain Scan Error: {data['error']}[/red]")
+             return
+        
+        subdomains = data.get("subdomains", [])
+        count = data.get("count", 0)
+        
+        if not subdomains:
+            self.console.print("[yellow]No subdomains found.[/yellow]")
+            return
+
+        # Use a Grid or simple Table for list
+        table = Table(title=f"Subdomains Found ({count})", show_header=True)
+        table.add_column("Domain", style="cyan")
+        
+        # If there are too many, we might want to paginate or columnize better, 
+        # but for now a simple list is fine.
+        # Let's show up to 20, then summarize if huge
+        limit = 20
+        for sub in subdomains[:limit]:
+            table.add_row(sub)
+            
+        if count > limit:
+            table.add_row(f"... and {count - limit} more")
+
+        self.console.print(table)
 
     def _render_http(self, data: Dict[str, Any]):
         if not data: return
