@@ -43,8 +43,15 @@ class Runner:
         
         # We can run targets in parallel
         tasks = []
+        # Implement concurrency control with Semaphore
+        sem = asyncio.Semaphore(self.config.concurrency)
+
+        async def _bounded_scan(t):
+            async with sem:
+                return await self._scan_target(t)
+
         for target in targets:
-            tasks.append(self._scan_target(target))
+            tasks.append(_bounded_scan(target))
             
         target_results = await asyncio.gather(*tasks)
         
