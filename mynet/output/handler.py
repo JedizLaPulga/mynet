@@ -42,7 +42,8 @@ class OutputHandler:
             "Subdomain Scanner": self._render_subdomains,
             "Tech Fingerprinter": self._render_tech,
             "Dir Enumerator": self._render_dir,
-            "Web Crawler": self._render_crawler
+            "Web Crawler": self._render_crawler,
+            "Traceroute Scanner": self._render_trace
         }
 
         for host, data in results.items(): 
@@ -301,6 +302,26 @@ class OutputHandler:
         if len(s_map) > limit:
             table.add_row(f"... and {len(s_map) - limit} more pages", "", "", "")
             
+        self.console.print(table)
+
+    def _render_trace(self, data: Dict[str, Any]):
+        hops = data.get("hops", [])
+        if not hops:
+            if "error" in data:
+                 self.console.print(f"[red]Traceroute Error: {data['error']}[/red]")
+            return
+
+        table = Table(title=f"Traceroute Path ({len(hops)} Hops)", show_header=True)
+        table.add_column("#", style="dim", width=4)
+        table.add_column("IP / Host", style="cyan")
+        table.add_column("Latency", style="green")
+        
+        for hop in hops:
+            table.add_row(
+                str(hop.get("hop")), 
+                hop.get("ip"), 
+                hop.get("rtt")
+            )
         self.console.print(table)
 
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
