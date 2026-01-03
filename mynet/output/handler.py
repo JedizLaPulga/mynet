@@ -41,7 +41,8 @@ class OutputHandler:
             "HTTP Scanner": self._render_http,
             "Subdomain Scanner": self._render_subdomains,
             "Tech Fingerprinter": self._render_tech,
-            "Dir Enumerator": self._render_dir
+            "Dir Enumerator": self._render_dir,
+            "Web Crawler": self._render_crawler
         }
 
         for host, data in results.items(): 
@@ -252,6 +253,55 @@ class OutputHandler:
                 table.add_row(display_path, f"[{s_style}]{status}[/{s_style}]", str(p.get("length")))
                 
             self.console.print(table)
+
+    def _render_crawler(self, data: Dict[str, Any]):
+        if not data: return
+        
+        stats = data.get("stats", {})
+        s_map = data.get("map", {})
+        
+        # Summary Panel
+        self.console.print(Panel(
+            f"[bold cyan]Crawl Summary[/bold cyan]\n"
+            f"Pages Visited: [green]{stats.get('visited_count', 0)}[/green]\n"
+            f"Total Internal Links: [green]{stats.get('total_links_found', 0)}[/green]",
+            expand=False
+        ))
+        
+        if not s_map: return
+
+        # Detailed Table
+        table = Table(title="Crawled Map (Top 25)", show_header=True)
+        table.add_column("Page URL", style="blue")
+        table.add_column("Status", style="bold")
+        table.add_column("Title", style="white")
+        table.add_column("Links Found", style="dim")
+        
+        # Sort by URL length (often implies depth) or just alpha
+        sorted_pages = sorted(s_map.items(), key=lambda x: x[0])
+        
+        shown_count = 0
+        limit = 25
+        
+        for url, info in sorted_pages:
+            if shown_count >= limit:
+                break
+                
+            status = info.get("status")
+            s_style = "green" if status == 200 else "red"
+            
+            table.add_row(
+                url, 
+                f"[{s_style}]{status}[/{s_style}]", 
+                info.get("title", "")[:30], 
+                str(info.get("links_count", 0))
+            )
+            shown_count += 1
+            
+        if len(s_map) > limit:
+            table.add_row(f"... and {len(s_map) - limit} more pages", "", "", "")
+            
+        self.console.print(table)
 
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
