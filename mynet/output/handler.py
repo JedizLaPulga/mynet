@@ -44,7 +44,8 @@ class OutputHandler:
             "Dir Enumerator": self._render_dir,
             "Web Crawler": self._render_crawler,
             "Traceroute Scanner": self._render_trace,
-            "Zone Transfer Scanner": self._render_axfr
+            "Zone Transfer Scanner": self._render_axfr,
+            "Vuln Scanner": self._render_vuln
         }
 
         for host, data in results.items(): 
@@ -352,6 +353,39 @@ class OutputHandler:
                 self.console.print(table)
         else:
              self.console.print(f"[green]{title}: Secure (Tested {len(ns_tested)} NS)[/green]")
+
+    def _render_vuln(self, data: Dict[str, Any]):
+        if not data: return
+        
+        # data key = "Apache 2.4.49", value = [list of cves]
+        
+        for software, cves in data.items():
+            if not cves: continue
+            
+            table = Table(title=f"Vulnerabilities for {software}", show_header=True)
+            table.add_column("CVE ID", style="bold red")
+            table.add_column("CVSS", style="yellow")
+            table.add_column("Summary", style="white")
+            
+            for cve in cves:
+                cvss = cve.get("cvss")
+                # Color code CVSS
+                c_style = "white"
+                try:
+                    score = float(cvss)
+                    if score >= 9.0: c_style = "bold red"
+                    elif score >= 7.0: c_style = "red"
+                    elif score >= 4.0: c_style = "yellow"
+                    else: c_style = "green"
+                except: pass
+                
+                table.add_row(
+                    cve.get("id"), 
+                    f"[{c_style}]{cvss}[/{c_style}]", 
+                    cve.get("summary")
+                )
+            self.console.print(table)
+
 
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
