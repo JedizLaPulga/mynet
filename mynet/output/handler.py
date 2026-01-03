@@ -311,6 +311,9 @@ class OutputHandler:
         elif file_path.endswith(".md"):
             self._write_md(results, file_path)
             
+        elif file_path.endswith(".html"):
+            self._write_html(results, file_path)
+            
         elif file_path.endswith(".csv"):
             self._write_csv(results, file_path)
             
@@ -353,6 +356,188 @@ class OutputHandler:
                 
                 # Add generic dump for others if needed
                 # (Optional optimization: iterate scans and dump others)
+
+    def _write_html(self, results: Dict[str, Any], file_path: str):
+        html_content = """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>MyNet Scan Results</title>
+            <style>
+                :root { --bg: #0f172a; --card-bg: #1e293b; --text: #f8fafc; --text-muted: #94a3b8; --accent: #38bdf8; --border: #334155; --success: #22c55e; --error: #ef4444; }
+                body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; line-height: 1.5; }
+                h1, h2, h3 { color: var(--text); }
+                .container { max-width: 1200px; margin: 0 auto; }
+                .header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+                .report-date { color: var(--text-muted); font-size: 0.9em; }
+                .target-card { background: var(--card-bg); border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); }
+                .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+                .module-section { background: var(--card-bg); border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); }
+                .module-title { font-size: 1.25em; font-weight: 600; margin-bottom: 15px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+                table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+                th { text-align: left; padding: 10px; background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 600; }
+                td { padding: 10px; border-bottom: 1px solid var(--border); }
+                tr:last-child td { border-bottom: none; }
+                .badge { padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 500; }
+                .badge-green { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+                .badge-red { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+                .badge-blue { background: rgba(56, 189, 248, 0.2); color: var(--accent); }
+                .scroll-table { overflow-x: auto; max-height: 400px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div>
+                        <h1>MyNet Scan Report</h1>
+                        <div class="report-date">Generated via MyNet Scanner</div>
+                    </div>
+                </div>
+        """
+        
+        for host, data in results.items():
+            t_info = data.get("target", {})
+            scans = data.get("scans", {})
+            
+            html_content += f"""
+            <div class="target-card">
+                <h2>Target: <span style="color:var(--accent)">{host}</span></h2>
+                <div style="color:var(--text-muted)">Type: {t_info.get('type', 'unknown')}</div>
+            </div>
+            """
+            
+            # 1. High Level Grid (Ports, Tech, Subdomain snapshot)
+            html_content += '<div class="grid">'
+            
+            # Ports Summary
+            if "Port Scanner" in scans:
+                ports = scans["Port Scanner"].get("open_ports", [])
+                html_content += f"""
+                <div class="module-section" style="margin-bottom:0">
+                    <div class="module-title">Ports</div>
+                    <div style="font-size:2em; font-weight:bold; color:var(--success)">{len(ports)}</div>
+                    <div style="color:var(--text-muted)">Open Ports Found</div>
+                </div>
+                """
+            
+            # Subdomain Summary
+            if "Subdomain Scanner" in scans:
+                count = scans["Subdomain Scanner"].get("count", 0)
+                html_content += f"""
+                <div class="module-section" style="margin-bottom:0">
+                    <div class="module-title">Subdomains</div>
+                    <div style="font-size:2em; font-weight:bold; color:var(--accent)">{count}</div>
+                    <div style="color:var(--text-muted)">Subdomains Identified</div>
+                </div>
+                """
+            
+            # Tech Summary (Count unique tech names)
+            tech_count = 0
+            if "Tech Fingerprinter" in scans:
+                unique_tech = set()
+                for t_list in scans["Tech Fingerprinter"].values():
+                    for t in t_list: unique_tech.add(t.get("name"))
+                tech_count = len(unique_tech)
+                html_content += f"""
+                <div class="module-section" style="margin-bottom:0">
+                    <div class="module-title">Technologies</div>
+                    <div style="font-size:2em; font-weight:bold; color:#f472b6">{tech_count}</div>
+                    <div style="color:var(--text-muted)">Unique Technologies Detected</div>
+                </div>
+                """
+            
+            html_content += '</div>' # End Grid
+
+            # Detailed Sections
+            
+            # Tech
+            if "Tech Fingerprinter" in scans and scans["Tech Fingerprinter"]:
+                html_content += '<div class="module-section"><div class="module-title">Technology Stack</div><div class="scroll-table"><table><thead><tr><th>Endpoint</th><th>Technology</th><th>Version</th><th>Source</th></tr></thead><tbody>'
+                for url, techs in scans["Tech Fingerprinter"].items():
+                    for t in techs:
+                        html_content += f"<tr><td>{url}</td><td>{t.get('name','')}</td><td>{t.get('version') or ''}</td><td>{t.get('source','')}</td></tr>"
+                html_content += '</tbody></table></div></div>'
+
+            # Ports Details
+            if "Port Scanner" in scans:
+                 p_res = scans["Port Scanner"]
+                 details = {d['port']: d.get('banner') for d in p_res.get("details", [])}
+                 open_ports = p_res.get("open_ports", [])
+                 if open_ports:
+                    html_content += '<div class="module-section"><div class="module-title">Open Ports</div><div class="scroll-table"><table><thead><tr><th>Port</th><th>State</th><th>Service Banner</th></tr></thead><tbody>'
+                    for p in open_ports:
+                        banner = details.get(p)
+                        banner_str = (banner[:60] + "...") if banner and len(banner) > 60 else (banner or "")
+                        html_content += f"<tr><td>{p}</td><td><span class='badge badge-green'>OPEN</span></td><td style='font-family:monospace; font-size:0.85em'>{banner_str}</td></tr>"
+                    html_content += '</tbody></table></div></div>'
+
+            # Subdomains
+            if "Subdomain Scanner" in scans:
+                subs = scans["Subdomain Scanner"].get("subdomains", [])
+                if subs:
+                    html_content += f'<div class="module-section"><div class="module-title">Subdomains Found</div><div class="scroll-table" style="max-height:300px"><table><tbody>'
+                    # Split into columns could be nice but simple list is fine
+                    for sub in subs:
+                        html_content += f"<tr><td>{sub}</td></tr>"
+                    html_content += '</tbody></table></div></div>'
+
+            # Directory Enum
+            if "Dir Enumerator" in scans and scans["Dir Enumerator"]:
+                html_content += '<div class="module-section"><div class="module-title">Directory Discovered</div><div class="scroll-table"><table><thead><tr><th>Endpoint</th><th>Status</th><th>Size</th></tr></thead><tbody>'
+                for base, paths in scans["Dir Enumerator"].items():
+                    for p in paths:
+                        status = p.get('status')
+                        badge = "badge-green" if status < 400 else "badge-red"
+                        html_content += f"<tr><td>{p.get('url')}</td><td><span class='badge {badge}'>{status}</span></td><td>{p.get('length')}</td></tr>"
+                html_content += '</tbody></table></div></div>'
+
+            # Crawler
+            if "Web Crawler" in scans:
+                c_map = scans["Web Crawler"].get("map", {})
+                if c_map:
+                    html_content += '<div class="module-section"><div class="module-title">Web Crawler Map</div><div class="scroll-table"><table><thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Internal Links</th></tr></thead><tbody>'
+                    # Limit to top 100 for HTML report sake
+                    sorted_pages = sorted(c_map.items(), key=lambda x: x[0])[:100]
+                    for url, info in sorted_pages:
+                         status = info.get('status')
+                         badge = "badge-green" if status == 200 else "badge-red"
+                         html_content += f"<tr><td>{url}</td><td><span class='badge {badge}'>{status}</span></td><td>{info.get('title','')}</td><td>{info.get('links_count')}</td></tr>"
+                    html_content += '</tbody></table></div></div>'
+
+            # DNS & Whois Grid
+            html_content += '<div class="grid">'
+            
+            if "DNS Scanner" in scans:
+                html_content += '<div class="module-section"><div class="module-title">DNS Records</div><div class="scroll-table"><table><tbody>'
+                for k, v in scans["DNS Scanner"].items():
+                    val_str = "<br>".join(v) if isinstance(v, list) else str(v)
+                    html_content += f"<tr><td style='width:50px; font-weight:bold'>{k}</td><td>{val_str}</td></tr>"
+                html_content += '</tbody></table></div></div>'
+            
+            if "Whois Scanner" in scans:
+                 w = scans["Whois Scanner"]
+                 html_content += '<div class="module-section"><div class="module-title">Whois Info</div><table><tbody>'
+                 if "error" not in w:
+                     html_content += f"<tr><td>ASN</td><td>{w.get('asn')} ({w.get('asn_description')})</td></tr>"
+                     html_content += f"<tr><td>CIDR</td><td>{w.get('network', {}).get('cidr')}</td></tr>"
+                     html_content += f"<tr><td>Country</td><td>{w.get('asn_country_code')}</td></tr>"
+                 html_content += '</tbody></table></div></div>'
+
+            html_content += '</div>' # End lower grid
+
+        html_content += """
+            <div style="text-align:center; color:var(--text-muted); margin-top:50px; border-top:1px solid var(--border); padding-top:20px">
+                MyNet Scanner Report &bull; Confidential
+            </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
 
     def _write_csv(self, results: Dict[str, Any], file_path: str):
         with open(file_path, "w", newline="") as f:
