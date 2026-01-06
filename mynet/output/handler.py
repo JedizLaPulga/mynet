@@ -52,7 +52,10 @@ class OutputHandler:
             "Subdomain Takeover": self._render_takeover,
             "Sensitive File Fuzzer": self._render_file_fuzzer,
             "Email Harvester": self._render_email,
-            "Wayback Machine Scanner": self._render_wayback
+            "Wayback Machine Scanner": self._render_wayback,
+            "CRT.sh Scanner": self._render_crtsh,
+            "Robots & Sitemap Scanner": self._render_robots,
+            "Cloud Asset Enumerator": self._render_cloud
         }
 
         for host, data in results.items(): 
@@ -497,6 +500,61 @@ class OutputHandler:
                 table.add_row(f"... {len(urls)-15} more")
             self.console.print(table)
 
+    def _render_crtsh(self, data: Dict[str, Any]):
+        subs = data.get("subdomains", [])
+        if not subs: return
+        
+        table = Table(title=f"CRT.sh Subdomains ({len(subs)})", show_header=False)
+        table.add_column("Domain")
+        for s in subs[:20]:
+            table.add_row(s)
+        if len(subs) > 20: 
+            table.add_row(f"... {len(subs)-20} more")
+        self.console.print(table)
+
+    def _render_robots(self, data: Dict[str, Any]):
+        if not data: return
+        
+        title = "Robots & Sitemap"
+        info = []
+        if data.get("robots_found"):
+            info.append("[green]robots.txt found[/green]")
+            dis = data.get("disallowed_paths", [])
+            if dis:
+                info.append(f"Disallowed: {len(dis)} paths")
+        else:
+            info.append("[yellow]robots.txt missing[/yellow]")
+            
+        if data.get("sitemap_found"):
+            info.append(f"[green]sitemap.xml found ({data.get('sitemap_count')} URLs)[/green]")
+        
+        self.console.print(Panel("\n".join(info), title=title, expand=False))
+        
+        # Optionally show disallowed
+        dis = data.get("disallowed_paths", [])
+        if dis:
+             t = Table(title="Disallowed Paths", show_header=False)
+             t.add_column("Path")
+             for p in dis[:10]:
+                 t.add_row(p)
+             if len(dis) > 10: t.add_row("...")
+             self.console.print(t)
+
+    def _render_cloud(self, data: Dict[str, Any]):
+        buckets = data.get("aws_buckets", [])
+        if not buckets: return
+        
+        table = Table(title="Cloud Buckets Found", show_header=True)
+        table.add_column("Name", style="cyan")
+        table.add_column("Status", style="bold")
+        table.add_column("URL", style="dim")
+        
+        for b in buckets:
+            bs = b.get("status")
+            style = "green" if "200" in bs else "yellow"
+            table.add_row(b["name"], f"[{style}]{bs}[/{style}]", b["url"])
+        self.console.print(table)
+
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
         if file_path.endswith(".json") or (output_format == "json" and not file_path.endswith((".",))):
@@ -798,6 +856,39 @@ class OutputHandler:
                          html_content += f"<tr><td><a href='{u}' target='_blank'>{u}</a></td></tr>"
                      html_content += '</tbody></table></div>'
                 html_content += '</div>'
+
+            # CRT.sh
+            if "CRT.sh Scanner" in scans:
+                c_data = scans["CRT.sh Scanner"]
+                subs = c_data.get("subdomains", [])
+                if subs:
+                     html_content += f'<div class="module-section"><div class="module-title">CRT.sh Passive Recon ({len(subs)})</div><div class="scroll-table" style="max-height:200px"><table><tbody>'
+                     for s in subs:
+                         html_content += f"<tr><td>{s}</td></tr>"
+                     html_content += '</tbody></table></div></div>'
+
+            # Robots
+            if "Robots & Sitemap Scanner" in scans:
+                r_data = scans["Robots & Sitemap Scanner"]
+                if r_data:
+                    html_content += '<div class="module-section"><div class="module-title">Content Discovery (Robots/Sitemap)</div>'
+                    if r_data.get("robots_found"):
+                         html_content += f"<div><span class='badge badge-green'>robots.txt</span> found with <b>{len(r_data.get('disallowed_paths', []))}</b> disallowed paths.</div>"
+                    if r_data.get("sitemap_found"):
+                         html_content += f"<div><span class='badge badge-green'>sitemap.xml</span> found with <b>{r_data.get('sitemap_count')}</b> URLs.</div>"
+                    html_content += '</div>'
+
+            # Cloud
+            if "Cloud Asset Enumerator" in scans:
+                cl_data = scans["Cloud Asset Enumerator"]
+                buckets = cl_data.get("aws_buckets", [])
+                if buckets:
+                     html_content += f'<div class="module-section"><div class="module-title">Cloud Assets</div><div class="scroll-table"><table><thead><tr><th>Name</th><th>Status</th><th>URL</th></tr></thead><tbody>'
+                     for b in buckets:
+                         bs = b.get("status")
+                         badge = "badge-green" if "200" in bs else "badge-blue"
+                         html_content += f"<tr><td>{b['name']}</td><td><span class='badge {badge}'>{bs}</span></td><td><a href='{b['url']}' target='_blank'>Link</a></td></tr>"
+                     html_content += '</tbody></table></div></div>'
 
         html_content += """
             <div style="text-align:center; color:var(--text-muted); margin-top:50px; border-top:1px solid var(--border); padding-top:20px">
