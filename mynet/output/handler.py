@@ -45,7 +45,14 @@ class OutputHandler:
             "Web Crawler": self._render_crawler,
             "Traceroute Scanner": self._render_trace,
             "Zone Transfer Scanner": self._render_axfr,
-            "Vuln Scanner": self._render_vuln
+            "Vuln Scanner": self._render_vuln,
+            "JS Secret Scanner": self._render_js_secrets,
+            "Security Headers": self._render_security_headers,
+            "WAF Detection": self._render_waf,
+            "Subdomain Takeover": self._render_takeover,
+            "Sensitive File Fuzzer": self._render_file_fuzzer,
+            "Email Harvester": self._render_email,
+            "Wayback Machine Scanner": self._render_wayback
         }
 
         for host, data in results.items(): 
@@ -387,6 +394,109 @@ class OutputHandler:
             self.console.print(table)
 
 
+    def _render_js_secrets(self, data: Dict[str, Any]):
+        secrets = data.get("secrets", [])
+        if not secrets:
+            scanned = data.get("scanned_files", 0)
+            if scanned > 0:
+                self.console.print(f"[green]JS Secrets: Scanned {scanned} files, no secrets found.[/green]")
+            return
+
+        table = Table(title=f"JS Secrets Found ({len(secrets)})", show_header=True)
+        table.add_column("Type", style="bold red")
+        table.add_column("Value", style="yellow")
+        table.add_column("Source", style="dim blue")
+        
+        for s in secrets:
+            table.add_row(s["type"], s["value"], s["source"])
+        
+        self.console.print(table)
+
+    def _render_security_headers(self, data: Dict[str, Any]):
+        if not data: return
+        
+        score = data.get("score", 0)
+        color = "green" if score >= 80 else "yellow" if score >= 50 else "red"
+        
+        self.console.print(Panel(
+            f"Security Score: [{color}]{score}/100[/{color}]",
+            title="Security Headers", border_style=color, expand=False
+        ))
+        
+        missing = data.get("missing", [])
+        if missing:
+            table = Table(title="Missing Security Headers", show_header=True)
+            table.add_column("Header", style="red")
+            table.add_column("Risk", style="bold")
+            for m in missing:
+                table.add_row(m["header"], m["risk"])
+            self.console.print(table)
+
+    def _render_waf(self, data: Dict[str, Any]):
+        if not data: return
+        if data.get("detected"):
+            wafs = ", ".join(data.get("wafs", []))
+            self.console.print(Panel(f"[bold red]WAF Detected: {wafs}[/bold red]", border_style="red", expand=False))
+        else:
+             pass 
+
+    def _render_takeover(self, data: Dict[str, Any]):
+        if data.get("vulnerable"):
+            self.console.print(Panel(
+                f"[bold red]Subdomain Takeover Vulnerability![/bold red]\n"
+                f"Provider: {data.get('provider')}\n"
+                f"CNAME: {data.get('cname')}",
+                border_style="red", expand=False
+            ))
+
+    def _render_file_fuzzer(self, data: Dict[str, Any]):
+        found = data.get("found", [])
+        if not found: return
+        
+        table = Table(title="Sensitive Files Found", show_header=True)
+        table.add_column("URL", style="blue")
+        table.add_column("Status", style="green")
+        table.add_column("Size", style="dim")
+        
+        for f in found:
+            table.add_row(f["url"], str(f["status"]), str(f["size"]))
+        self.console.print(table)
+
+    def _render_email(self, data: Dict[str, Any]):
+        emails = data.get("emails", [])
+        if not emails: return
+        
+        table = Table(title=f"Emails Found ({len(emails)})", show_header=True)
+        table.add_column("Email", style="green")
+        table.add_column("Source", style="dim")
+        
+        for e in emails[:20]:
+            table.add_row(e["email"], e["source"])
+        if len(emails) > 20:
+            table.add_row(f"... {len(emails)-20} more", "")
+        self.console.print(table)
+
+    def _render_wayback(self, data: Dict[str, Any]):
+        urls = data.get("urls", [])
+        params = data.get("interesting_params", [])
+        total = data.get("total_found", 0)
+        
+        self.console.print(Panel(
+            f"Wayback Machine Results\n"
+            f"Total URLs Found: {total}\n"
+            f"Unique Params: {', '.join(params[:10])}",
+            title="Archive.org Scan", border_style="cyan", expand=False
+        ))
+        
+        if urls:
+            table = Table(title="Historical URLs (Preview)", show_header=True)
+            table.add_column("URL", style="dim")
+            for u in urls[:15]:
+                table.add_row(u)
+            if len(urls) > 15:
+                table.add_row(f"... {len(urls)-15} more")
+            self.console.print(table)
+
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
         if file_path.endswith(".json") or (output_format == "json" and not file_path.endswith((".",))):
@@ -610,6 +720,84 @@ class OutputHandler:
                  html_content += '</tbody></table></div></div>'
 
             html_content += '</div>' # End lower grid
+
+            # New Modules HTML Support
+            
+            # WAF
+            if "WAF Detection" in scans:
+                waf_data = scans["WAF Detection"]
+                if waf_data.get("detected"):
+                    wafs = ", ".join(waf_data.get("wafs", []))
+                    html_content += f'<div class="module-section" style="border-left: 5px solid var(--error);"><div class="module-title" style="color:var(--error)">WAF Detected</div><div style="font-size:1.2em"><b>{wafs}</b> protects this target.</div></div>'
+
+            # Takeover
+            if "Subdomain Takeover" in scans:
+                to_data = scans["Subdomain Takeover"]
+                if to_data.get("vulnerable"):
+                    html_content += f'<div class="module-section" style="border-left: 5px solid var(--error); background:rgba(239, 68, 68, 0.1);"><div class="module-title" style="color:var(--error)">Subdomain Takeover Vulnerability</div><div style="font-size:1.2em">Provider: <b>{to_data.get("provider")}</b><br>CNAME: {to_data.get("cname")}</div></div>'
+
+            # Header Scanner
+            if "Security Headers" in scans:
+                h_data = scans["Security Headers"]
+                score = h_data.get("score", 0)
+                s_color = "var(--success)" if score >= 80 else "var(--accent)" if score >= 50 else "var(--error)"
+                
+                html_content += f'<div class="module-section"><div class="module-title">Security Headers</div><div style="display:flex; align-items:center; gap:20px"><div style="font-size:3em; font-weight:bold; color:{s_color}">{score}</div><div>Security Score</div></div>'
+                
+                missing = h_data.get("missing", [])
+                if missing:
+                    html_content += '<div class="scroll-table" style="margin-top:10px"><table><thead><tr><th>Missing Header</th><th>Risk</th><th>Description</th></tr></thead><tbody>'
+                    for m in missing:
+                        html_content += f"<tr><td>{m['header']}</td><td><span class='badge badge-red'>{m['risk']}</span></td><td>{m['description']}</td></tr>"
+                    html_content += '</tbody></table></div>'
+                html_content += '</div>'
+
+            # JS Secrets
+            if "JS Secret Scanner" in scans:
+                js_data = scans["JS Secret Scanner"]
+                secrets = js_data.get("secrets", [])
+                if secrets:
+                    html_content += f'<div class="module-section"><div class="module-title">JS Secrets Found ({len(secrets)})</div><div class="scroll-table"><table><thead><tr><th>Type</th><th>Value</th><th>Source</th></tr></thead><tbody>'
+                    for s in secrets:
+                         html_content += f"<tr><td><span class='badge badge-red'>{s['type']}</span></td><td style='font-family:monospace'>{s['value']}</td><td><a href='{s['source']}' target='_blank' style='color:var(--accent)'>{s['source'].split('/')[-1]}</a></td></tr>"
+                    html_content += '</tbody></table></div></div>'
+
+            # Sensitive Files
+            if "Sensitive File Fuzzer" in scans:
+                 found = scans["Sensitive File Fuzzer"].get("found", [])
+                 if found:
+                    html_content += f'<div class="module-section"><div class="module-title">Sensitive Files Exposed</div><div class="scroll-table"><table><thead><tr><th>URL</th><th>Status</th><th>Size</th></tr></thead><tbody>'
+                    for f in found:
+                        html_content += f"<tr><td>{f['url']}</td><td><span class='badge badge-green'>{f['status']}</span></td><td>{f['size']}</td></tr>"
+                    html_content += '</tbody></table></div></div>'
+
+            # Emails
+            if "Email Harvester" in scans:
+                emails = scans["Email Harvester"].get("emails", [])
+                if emails:
+                    html_content += f'<div class="module-section"><div class="module-title">Emails Found ({len(emails)})</div><div class="scroll-table"><table><thead><tr><th>Email</th><th>Source</th></tr></thead><tbody>'
+                    for e in emails[:50]:
+                        html_content += f"<tr><td>{e['email']}</td><td>{e['source']}</td></tr>"
+                    html_content += '</tbody></table></div></div>'
+
+            # Wayback
+            if "Wayback Machine Scanner" in scans:
+                wb = scans["Wayback Machine Scanner"]
+                total = wb.get("total_found", 0)
+                urls = wb.get("urls", [])
+                params = wb.get("interesting_params", [])
+                
+                html_content += f'<div class="module-section"><div class="module-title">Wayback Machine Archive ({total} URLs)</div>'
+                if params:
+                    p_str = ", ".join([f"<span class='badge badge-blue'>{p}</span>" for p in params])
+                    html_content += f'<div style="margin-bottom:15px"><strong>Params Found:</strong> {p_str}</div>'
+                
+                if urls:
+                     html_content += '<div class="scroll-table"><table><tbody>'
+                     for u in urls[:50]:
+                         html_content += f"<tr><td><a href='{u}' target='_blank'>{u}</a></td></tr>"
+                     html_content += '</tbody></table></div>'
+                html_content += '</div>'
 
         html_content += """
             <div style="text-align:center; color:var(--text-muted); margin-top:50px; border-top:1px solid var(--border); padding-top:20px">
