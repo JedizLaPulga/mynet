@@ -55,7 +55,9 @@ class OutputHandler:
             "Wayback Machine Scanner": self._render_wayback,
             "CRT.sh Scanner": self._render_crtsh,
             "Robots & Sitemap Scanner": self._render_robots,
-            "Cloud Asset Enumerator": self._render_cloud
+            "Cloud Asset Enumerator": self._render_cloud,
+            "CORS Scanner": self._render_cors,
+            "API Scanner": self._render_api,
         }
 
         for host, data in results.items(): 
