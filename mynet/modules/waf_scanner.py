@@ -1,7 +1,6 @@
-import asyncio
 import aiohttp
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from .base import BaseModule
 from ..core.input_parser import Target
 
@@ -43,7 +42,7 @@ class WAFScanner(BaseModule):
         async with aiohttp.ClientSession() as session:
             try:
                 # We perform a simple GET request
-                # Somd WAFs only trigger on specific attacks, but most leave signature headers usually.
+                # Some WAFs only trigger on specific attacks, but most leave signature headers.
                 async with session.get(url, timeout=self.config.timeout, verify_ssl=False) as response:
                     
                     headers = response.headers
@@ -73,8 +72,7 @@ class WAFScanner(BaseModule):
                         results["wafs"] = list(found_wafs)
 
             except Exception as e:
-                # Silent fail generally, or report connectivity issue
-                pass
+                results["error"] = str(e)
 
         return results
 
