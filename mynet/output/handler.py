@@ -437,11 +437,50 @@ class OutputHandler:
 
     def _render_waf(self, data: Dict[str, Any]):
         if not data: return
+        if "error" in data:
+            self.console.print(f"[red]WAF Detection Error: {data['error']}[/red]")
+            return
+            
         if data.get("detected"):
             wafs = ", ".join(data.get("wafs", []))
-            self.console.print(Panel(f"[bold red]WAF Detected: {wafs}[/bold red]", border_style="red", expand=False))
+            confidence = data.get("confidence", 0)
+            methods = data.get("detection_methods", [])
+            
+            # Color code confidence
+            conf_color = "green" if confidence >= 70 else "yellow" if confidence >= 40 else "red"
+            
+            # Build panel content
+            content_lines = [
+                f"[bold red]WAF(s) Detected: {wafs}[/bold red]",
+                f"Confidence: [{conf_color}]{confidence}%[/{conf_color}]",
+                f"Detection Methods: {', '.join(methods)}" if methods else "",
+            ]
+            
+            # Add block behavior if present
+            block = data.get("block_behavior")
+            if block:
+                content_lines.append(
+                    f"\nBlock Behavior: [yellow]{block.get('trigger')}[/yellow] → "
+                    f"HTTP {block.get('status_code')} ({block.get('block_type')})"
+                )
+            
+            self.console.print(Panel(
+                "\n".join(line for line in content_lines if line),
+                title="WAF Detection",
+                border_style="red",
+                expand=False
+            ))
+            
+            # Show bypass hints in a separate table
+            hints = data.get("bypass_hints", [])
+            if hints:
+                table = Table(title="Potential Bypass Techniques", show_header=False)
+                table.add_column("Hint", style="dim cyan")
+                for hint in hints[:5]:  # Limit to 5 hints
+                    table.add_row(f"• {hint}")
+                self.console.print(table)
         else:
-             pass 
+            self.console.print("[green]WAF Detection: No WAF detected[/green]")
 
     def _render_takeover(self, data: Dict[str, Any]):
         if data.get("vulnerable"):
@@ -786,7 +825,34 @@ class OutputHandler:
                 waf_data = scans["WAF Detection"]
                 if waf_data.get("detected"):
                     wafs = ", ".join(waf_data.get("wafs", []))
-                    html_content += f'<div class="module-section" style="border-left: 5px solid var(--error);"><div class="module-title" style="color:var(--error)">WAF Detected</div><div style="font-size:1.2em"><b>{wafs}</b> protects this target.</div></div>'
+                    confidence = waf_data.get("confidence", 0)
+                    methods = ", ".join(waf_data.get("detection_methods", []))
+                    conf_color = "var(--success)" if confidence >= 70 else "var(--accent)" if confidence >= 40 else "var(--error)"
+                    
+                    html_content += f'''<div class="module-section" style="border-left: 5px solid var(--error);">
+                        <div class="module-title" style="color:var(--error)">WAF Detected</div>
+                        <div style="display:flex; gap:30px; align-items:center; margin-bottom:15px">
+                            <div><b style="font-size:1.3em">{wafs}</b><br><span style="color:var(--text-muted)">Detected WAF(s)</span></div>
+                            <div><span style="font-size:2em; font-weight:bold; color:{conf_color}">{confidence}%</span><br><span style="color:var(--text-muted)">Confidence</span></div>
+                        </div>
+                        <div style="color:var(--text-muted); margin-bottom:10px">Detection Methods: {methods}</div>'''
+                    
+                    # Block behavior
+                    block = waf_data.get("block_behavior")
+                    if block:
+                        html_content += f'''<div style="background:rgba(239,68,68,0.1); padding:10px; border-radius:4px; margin-bottom:10px">
+                            <b>Block Triggered:</b> {block.get("trigger")} → HTTP {block.get("status_code")} ({block.get("block_type")})
+                        </div>'''
+                    
+                    # Bypass hints
+                    hints = waf_data.get("bypass_hints", [])
+                    if hints:
+                        html_content += '<div style="margin-top:10px"><b>Potential Bypass Techniques:</b><ul style="margin:5px 0; padding-left:20px">'
+                        for hint in hints[:5]:
+                            html_content += f'<li style="color:var(--text-muted)">{hint}</li>'
+                        html_content += '</ul></div>'
+                    
+                    html_content += '</div>'
 
             # Takeover
             if "Subdomain Takeover" in scans:
