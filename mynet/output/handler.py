@@ -617,6 +617,151 @@ class OutputHandler:
             table.add_row(b["name"], f"[{style}]{bs}[/{style}]", b["url"])
         self.console.print(table)
 
+    def _render_cors(self, data: Dict[str, Any]):
+        if not data: return
+        if "error" in data:
+            self.console.print(f"[red]CORS Scanner Error: {data['error']}[/red]")
+            return
+        
+        if data.get("vulnerable"):
+            vulns = data.get("vulnerabilities", [])
+            
+            # Summary panel
+            critical = len([v for v in vulns if v.get("severity") == "critical"])
+            high = len([v for v in vulns if v.get("severity") == "high"])
+            
+            self.console.print(Panel(
+                f"[bold red]CORS Misconfiguration Found![/bold red]\n"
+                f"Critical: [red]{critical}[/red] | High: [yellow]{high}[/yellow] | Total: {len(vulns)}",
+                title="CORS Scanner",
+                border_style="red",
+                expand=False
+            ))
+            
+            # Vulnerabilities table
+            if vulns:
+                table = Table(title="CORS Vulnerabilities", show_header=True)
+                table.add_column("Type", style="red")
+                table.add_column("Origin Tested", style="cyan")
+                table.add_column("Severity", style="bold")
+                table.add_column("Credentials", style="dim")
+                
+                for v in vulns[:10]:
+                    sev = v.get("severity", "")
+                    sev_style = "red" if sev == "critical" else "yellow" if sev == "high" else "dim"
+                    creds = "✓ Yes" if v.get("credentials_allowed") else "No"
+                    table.add_row(
+                        v.get("type", ""),
+                        v.get("origin_sent", "")[:40],
+                        f"[{sev_style}]{sev.upper()}[/{sev_style}]",
+                        creds
+                    )
+                
+                if len(vulns) > 10:
+                    table.add_row(f"... and {len(vulns) - 10} more", "", "", "")
+                
+                self.console.print(table)
+            
+            # Recommendations
+            recs = data.get("recommendations", [])
+            if recs:
+                table = Table(title="Recommendations", show_header=False)
+                table.add_column("Priority", style="bold", width=10)
+                table.add_column("Recommendation", style="dim")
+                for r in recs[:5]:
+                    p = r.get("priority", "")
+                    p_style = "red" if p == "critical" else "yellow" if p == "high" else "cyan"
+                    table.add_row(f"[{p_style}]{p.upper()}[/{p_style}]", r.get("recommendation", ""))
+                self.console.print(table)
+        else:
+            self.console.print("[green]CORS Scanner: No vulnerabilities found[/green]")
+
+    def _render_api(self, data: Dict[str, Any]):
+        if not data: return
+        if "error" in data:
+            self.console.print(f"[red]API Scanner Error: {data['error']}[/red]")
+            return
+        
+        endpoints = data.get("discovered_endpoints", [])
+        api_docs = data.get("api_documentation", {})
+        issues = data.get("security_issues", [])
+        graphql = data.get("graphql")
+        
+        # Summary panel
+        auth_required = len([e for e in endpoints if e.get("auth_required")])
+        public = len(endpoints) - auth_required
+        
+        summary_lines = [
+            f"Endpoints Found: [green]{len(endpoints)}[/green] (Public: {public}, Auth Required: {auth_required})",
+        ]
+        
+        if api_docs and api_docs.get("found"):
+            summary_lines.append(f"API Docs: [green]{api_docs.get('type', 'OpenAPI')} {api_docs.get('version', '')}[/green]")
+        
+        if issues:
+            summary_lines.append(f"Security Issues: [red]{len(issues)}[/red]")
+        
+        if graphql and graphql.get("found"):
+            intro = "[red]Introspection Enabled![/red]" if graphql.get("introspection_enabled") else "[green]Introspection Disabled[/green]"
+            summary_lines.append(f"GraphQL: {intro}")
+        
+        self.console.print(Panel(
+            "\n".join(summary_lines),
+            title="API Scanner",
+            border_style="cyan",
+            expand=False
+        ))
+        
+        # Endpoints table
+        if endpoints:
+            table = Table(title=f"Discovered Endpoints ({len(endpoints)})", show_header=True)
+            table.add_column("Path", style="cyan")
+            table.add_column("Status", style="bold")
+            table.add_column("Content-Type", style="dim")
+            table.add_column("Auth", style="yellow")
+            
+            for e in endpoints[:15]:
+                status = e.get("status", 0)
+                s_style = "green" if status == 200 else "yellow" if status in (401, 403) else "red"
+                auth = "Required" if e.get("auth_required") else ""
+                table.add_row(
+                    e.get("path", ""),
+                    f"[{s_style}]{status}[/{s_style}]",
+                    e.get("content_type", "")[:30],
+                    auth
+                )
+            
+            if len(endpoints) > 15:
+                table.add_row(f"... and {len(endpoints) - 15} more", "", "", "")
+            
+            self.console.print(table)
+        
+        # Security issues
+        if issues:
+            table = Table(title="Security Issues", show_header=True)
+            table.add_column("Type", style="red")
+            table.add_column("Path", style="cyan")
+            table.add_column("Severity", style="bold")
+            table.add_column("Description", style="dim")
+            
+            for issue in issues[:10]:
+                sev = issue.get("severity", "")
+                sev_style = "red" if sev == "high" else "yellow" if sev == "medium" else "dim"
+                table.add_row(
+                    issue.get("type", ""),
+                    issue.get("path", "N/A"),
+                    f"[{sev_style}]{sev.upper()}[/{sev_style}]",
+                    issue.get("description", "")[:50]
+                )
+            
+            self.console.print(table)
+        
+        # Technologies
+        techs = data.get("technologies", [])
+        if techs:
+            tech_names = ", ".join([t["name"] for t in techs[:5]])
+            self.console.print(f"[dim]Technologies: {tech_names}[/dim]")
+
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
         if file_path.endswith(".json") or (output_format == "json" and not file_path.endswith((".",))):
