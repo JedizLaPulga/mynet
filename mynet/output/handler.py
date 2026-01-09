@@ -479,6 +479,27 @@ class OutputHandler:
                 for hint in hints[:5]:  # Limit to 5 hints
                     table.add_row(f"• {hint}")
                 self.console.print(table)
+            
+            # Show evasion results if available
+            evasion_results = data.get("evasion_results", [])
+            if evasion_results:
+                table = Table(title="Evasion Testing Results", show_header=True)
+                table.add_column("Technique", style="cyan")
+                table.add_column("Type", style="dim")
+                table.add_column("Result", style="bold")
+                table.add_column("Status", style="dim")
+                
+                for result in evasion_results:
+                    bypassed = result.get("bypassed", False)
+                    result_style = "[green]BYPASSED[/green]" if bypassed else "[red]BLOCKED[/red]"
+                    status = str(result.get("status_code", result.get("error", "N/A")))
+                    table.add_row(
+                        result.get("technique", ""),
+                        result.get("type", ""),
+                        result_style,
+                        status
+                    )
+                self.console.print(table)
         else:
             self.console.print("[green]WAF Detection: No WAF detected[/green]")
 
@@ -851,6 +872,27 @@ class OutputHandler:
                         for hint in hints[:5]:
                             html_content += f'<li style="color:var(--text-muted)">{hint}</li>'
                         html_content += '</ul></div>'
+                    
+                    # Evasion results
+                    evasion_results = waf_data.get("evasion_results", [])
+                    if evasion_results:
+                        html_content += '''<div style="margin-top:15px">
+                            <b>Evasion Testing Results:</b>
+                            <table style="margin-top:10px">
+                                <thead><tr><th>Technique</th><th>Type</th><th>Result</th><th>Status</th></tr></thead>
+                                <tbody>'''
+                        for result in evasion_results:
+                            bypassed = result.get("bypassed", False)
+                            badge = "badge-green" if bypassed else "badge-red"
+                            result_text = "BYPASSED" if bypassed else "BLOCKED"
+                            status = str(result.get("status_code", result.get("error", "N/A")))
+                            html_content += f'''<tr>
+                                <td>{result.get("technique", "")}</td>
+                                <td>{result.get("type", "")}</td>
+                                <td><span class="badge {badge}">{result_text}</span></td>
+                                <td>{status}</td>
+                            </tr>'''
+                        html_content += '</tbody></table></div>'
                     
                     html_content += '</div>'
 
