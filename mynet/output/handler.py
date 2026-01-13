@@ -58,6 +58,7 @@ class OutputHandler:
             "Cloud Asset Enumerator": self._render_cloud,
             "CORS Scanner": self._render_cors,
             "API Scanner": self._render_api,
+            "Screenshot Capture": self._render_screenshots,
         }
 
         for host, data in results.items(): 
