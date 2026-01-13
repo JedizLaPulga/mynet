@@ -61,6 +61,7 @@ class OutputHandler:
             "Screenshot Capture": self._render_screenshots,
             "Open Redirect Scanner": self._render_redirects,
             "HTTP Method Scanner": self._render_methods,
+            "Host Header Injection": self._render_host_header,
         }
 
         for host, data in results.items(): 
@@ -962,6 +963,55 @@ class OutputHandler:
             allowed_str = ", ".join(allowed[:5]) if allowed else "GET, HEAD"
             self.console.print(f"[green]HTTP Methods: No dangerous methods found (Allowed: {allowed_str})[/green]")
 
+    def _render_host_header(self, data: Dict[str, Any]):
+        if not data: return
+        if "error" in data:
+            self.console.print(f"[red]Host Header Error: {data['error']}[/red]")
+            return
+        
+        if data.get("vulnerable"):
+            vulns = data.get("vulnerabilities", [])
+            
+            # Count by severity
+            high = len([v for v in vulns if v.get("severity") == "high"])
+            medium = len([v for v in vulns if v.get("severity") == "medium"])
+            
+            summary_lines = [
+                f"[bold red]VULNERABLE: {len(vulns)} issue(s) found[/bold red]",
+                f"High: [red]{high}[/red] | Medium: [yellow]{medium}[/yellow]",
+                f"[dim]Original Host: {data.get('original_host', '')}[/dim]",
+            ]
+            
+            self.console.print(Panel(
+                "\n".join(summary_lines),
+                title="Host Header Injection",
+                border_style="red",
+                expand=False
+            ))
+            
+            # Vulnerabilities table
+            if vulns:
+                table = Table(title="Host Header Vulnerabilities", show_header=True)
+                table.add_column("Type", style="red")
+                table.add_column("Header", style="cyan")
+                table.add_column("Severity", style="bold")
+                table.add_column("Impact", style="dim")
+                
+                for v in vulns[:10]:
+                    sev = v.get("severity", "")
+                    sev_style = "red" if sev == "high" else "yellow"
+                    table.add_row(
+                        v.get("type", "")[:25],
+                        v.get("header", ""),
+                        f"[{sev_style}]{sev.upper()}[/{sev_style}]",
+                        v.get("impact", "")[:40]
+                    )
+                
+                self.console.print(table)
+        else:
+            tested = data.get("tested_payloads", 0)
+            self.console.print(f"[green]Host Header: No injection vulnerabilities found ({tested} tests)[/green]")
+
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
         if file_path.endswith(".json") or (output_format == "json" and not file_path.endswith((".",))):
@@ -972,6 +1022,9 @@ class OutputHandler:
             
         elif file_path.endswith(".html"):
             self._write_html(results, file_path)
+            
+        elif file_path.endswith(".pdf"):
+            self._write_pdf(results, file_path)
             
         elif file_path.endswith(".csv"):
             self._write_csv(results, file_path)
@@ -1377,3 +1430,15 @@ class OutputHandler:
                 dns_info = str(scans.get("DNS Scanner", {}))
                 
                 writer.writerow([host, t_type, ports, "; ".join(http_titles), dns_info])
+
+    def _write_pdf(self, results: Dict[str, Any], file_path: str):
+        """Generate PDF report from scan results."""
+        try:
+            from .pdf_report import generate_pdf_report
+            generate_pdf_report(results, file_path)
+        except ImportError:
+            self.console.print("[yellow]PDF generation requires reportlab. Install with: pip install reportlab[/yellow]")
+            # Fallback to JSON
+            json_path = file_path.replace(".pdf", ".json")
+            self._write_json(results, json_path)
+            self.console.print(f"[dim]Saved as JSON instead: {json_path}[/dim]")
