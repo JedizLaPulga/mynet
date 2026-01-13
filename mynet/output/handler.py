@@ -763,6 +763,73 @@ class OutputHandler:
             tech_names = ", ".join([t["name"] for t in techs[:5]])
             self.console.print(f"[dim]Technologies: {tech_names}[/dim]")
 
+    def _render_screenshots(self, data: Dict[str, Any]):
+        if not data: return
+        if "error" in data:
+            self.console.print(f"[red]Screenshot Error: {data['error']}[/red]")
+            return
+        
+        if not data.get("success"):
+            errors = data.get("errors", [])
+            if errors:
+                self.console.print(f"[yellow]Screenshot: {errors[0]}[/yellow]")
+            return
+        
+        screenshots = data.get("screenshots", [])
+        metadata = data.get("metadata", {})
+        
+        # Summary panel
+        summary_lines = [
+            f"Captured: [green]{len(screenshots)} screenshot(s)[/green]",
+        ]
+        
+        if metadata.get("title"):
+            summary_lines.append(f"Title: {metadata['title'][:50]}")
+        
+        if metadata.get("has_login"):
+            summary_lines.append("[yellow]Login form detected[/yellow]")
+        
+        if metadata.get("dark_mode"):
+            summary_lines.append("[dim]Dark mode detected[/dim]")
+        
+        techs = metadata.get("technologies", [])
+        if techs:
+            summary_lines.append(f"Technologies: {', '.join(techs[:5])}")
+        
+        self.console.print(Panel(
+            "\n".join(summary_lines),
+            title="Screenshot Capture",
+            border_style="cyan",
+            expand=False
+        ))
+        
+        # Screenshots table
+        if screenshots:
+            table = Table(title="Captured Screenshots", show_header=True)
+            table.add_column("Viewport", style="cyan")
+            table.add_column("Dimensions", style="dim")
+            table.add_column("Size", style="green")
+            table.add_column("Path", style="blue")
+            
+            for s in screenshots:
+                if "error" in s:
+                    table.add_row(
+                        s.get("viewport", ""),
+                        "",
+                        "",
+                        f"[red]{s['error'][:40]}[/red]"
+                    )
+                else:
+                    table.add_row(
+                        s.get("viewport", ""),
+                        s.get("dimensions", ""),
+                        s.get("file_size_human", ""),
+                        s.get("filename", "")
+                    )
+            
+            self.console.print(table)
+
+
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
         if file_path.endswith(".json") or (output_format == "json" and not file_path.endswith((".",))):
