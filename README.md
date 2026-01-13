@@ -77,13 +77,13 @@ python main.py example.com --diff baseline.json
 | `--concurrency` | Number of concurrent connections | 50 |
 | `--timeout` | Request timeout in seconds | 5 |
 | `--output` | Output format: `table` or `json` | table |
-| `--file`, `-f` | Save results to file (.json, .html, .md, .csv) | None |
+| `--file`, `-f` | Save results to file (.json, .html, .md, .csv, .pdf) | None |
 | `--diff`, `-d` | Compare against baseline JSON file | None |
 | `--save-baseline`, `-b` | Save results as baseline for future diffs | None |
 
 ## 🔧 Modules
 
-MyNet includes **30 scanning modules** organized by category:
+MyNet includes **31 scanning modules** organized by category:
 
 
 ### 🌐 Network & DNS
@@ -105,6 +105,7 @@ MyNet includes **30 scanning modules** organized by category:
 | **Subdomain Takeover** | Detects vulnerable dangling CNAMEs |
 | **Open Redirect Scanner** | Detects open redirect vulnerabilities with bypass payloads |
 | **HTTP Method Scanner** | Tests for dangerous methods (PUT, DELETE, TRACE, WebDAV) |
+| **Host Header Injection** | Tests for cache poisoning, password reset poisoning |
 
 ### 🕵️ Reconnaissance
 | Module | Description |
