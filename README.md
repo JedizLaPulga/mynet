@@ -61,6 +61,12 @@ python main.py example.com --output json
 
 # Custom concurrency and timeout
 python main.py example.com --concurrency 100 --timeout 10
+
+# Save baseline for future comparisons
+python main.py example.com --save-baseline baseline.json
+
+# Compare against previous scan (Diff Mode)
+python main.py example.com --diff baseline.json
 ```
 
 ### Command Options
@@ -72,10 +78,13 @@ python main.py example.com --concurrency 100 --timeout 10
 | `--timeout` | Request timeout in seconds | 5 |
 | `--output` | Output format: `table` or `json` | table |
 | `--file`, `-f` | Save results to file (.json, .html, .md, .csv) | None |
+| `--diff`, `-d` | Compare against baseline JSON file | None |
+| `--save-baseline`, `-b` | Save results as baseline for future diffs | None |
 
 ## 🔧 Modules
 
-MyNet includes **29 scanning modules** organized by category:
+MyNet includes **30 scanning modules** organized by category:
+
 
 ### 🌐 Network & DNS
 | Module | Description |
