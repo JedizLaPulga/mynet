@@ -39,7 +39,8 @@ def scan(
     # 2. Parse Input
     console.print(Panel(f"[bold blue]MyNet Scanner[/bold blue]\nTarget: {target}", border_style="blue"))
     
-    target_list = parse_input(target)
+    # Convert generator to list (safe for reasonable inputs, warns user for huge CIDRs)
+    target_list = list(parse_input(target))
     if not target_list:
         console.print("[red]Invalid target input.[/red]")
         raise typer.Exit(code=1)
