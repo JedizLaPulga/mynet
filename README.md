@@ -104,6 +104,7 @@ MyNet includes **30 scanning modules** organized by category:
 | **CORS Scanner** | Cross-Origin Resource Sharing misconfiguration detection |
 | **Subdomain Takeover** | Detects vulnerable dangling CNAMEs |
 | **Open Redirect Scanner** | Detects open redirect vulnerabilities with bypass payloads |
+| **HTTP Method Scanner** | Tests for dangerous methods (PUT, DELETE, TRACE, WebDAV) |
 
 ### 🕵️ Reconnaissance
 | Module | Description |
