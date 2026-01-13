@@ -75,7 +75,7 @@ python main.py example.com --concurrency 100 --timeout 10
 
 ## 🔧 Modules
 
-MyNet includes **27 scanning modules** organized by category:
+MyNet includes **29 scanning modules** organized by category:
 
 ### 🌐 Network & DNS
 | Module | Description |
@@ -94,6 +94,7 @@ MyNet includes **27 scanning modules** organized by category:
 | **Vuln Scanner** | CVE lookup for detected software versions |
 | **CORS Scanner** | Cross-Origin Resource Sharing misconfiguration detection |
 | **Subdomain Takeover** | Detects vulnerable dangling CNAMEs |
+| **Open Redirect Scanner** | Detects open redirect vulnerabilities with bypass payloads |
 
 ### 🕵️ Reconnaissance
 | Module | Description |
