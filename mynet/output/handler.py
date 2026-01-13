@@ -60,6 +60,7 @@ class OutputHandler:
             "API Scanner": self._render_api,
             "Screenshot Capture": self._render_screenshots,
             "Open Redirect Scanner": self._render_redirects,
+            "HTTP Method Scanner": self._render_methods,
         }
 
         for host, data in results.items(): 
@@ -901,6 +902,65 @@ class OutputHandler:
         else:
             tested = data.get("tested_params", 0) * data.get("tested_payloads", 0)
             self.console.print(f"[green]Open Redirect: No vulnerabilities found ({tested} tests)[/green]")
+
+    def _render_methods(self, data: Dict[str, Any]):
+        if not data: return
+        if "error" in data:
+            self.console.print(f"[red]HTTP Method Error: {data['error']}[/red]")
+            return
+        
+        vulns = data.get("vulnerabilities", [])
+        dangerous = data.get("dangerous_methods", [])
+        allowed = data.get("allowed_methods", [])
+        webdav = data.get("webdav_enabled", False)
+        
+        # Summary
+        if vulns or dangerous:
+            summary_lines = []
+            
+            if vulns:
+                high = len([v for v in vulns if v.get("severity") == "high"])
+                medium = len([v for v in vulns if v.get("severity") == "medium"])
+                summary_lines.append(f"[bold red]Issues Found: {len(vulns)}[/bold red] (High: {high}, Medium: {medium})")
+            
+            if dangerous:
+                summary_lines.append(f"Dangerous Methods: [yellow]{', '.join(dangerous)}[/yellow]")
+            
+            if webdav:
+                summary_lines.append("[yellow]WebDAV is enabled[/yellow]")
+            
+            if allowed:
+                summary_lines.append(f"[dim]Allowed: {', '.join(allowed[:8])}{'...' if len(allowed) > 8 else ''}[/dim]")
+            
+            self.console.print(Panel(
+                "\n".join(summary_lines),
+                title="HTTP Method Scanner",
+                border_style="red" if vulns else "yellow",
+                expand=False
+            ))
+            
+            # Vulnerabilities table
+            if vulns:
+                table = Table(title="Method Vulnerabilities", show_header=True)
+                table.add_column("Type", style="red")
+                table.add_column("Method", style="cyan")
+                table.add_column("Severity", style="bold")
+                table.add_column("Description", style="dim")
+                
+                for v in vulns:
+                    sev = v.get("severity", "")
+                    sev_style = "red" if sev == "high" else "yellow"
+                    table.add_row(
+                        v.get("type", ""),
+                        v.get("method", ""),
+                        f"[{sev_style}]{sev.upper()}[/{sev_style}]",
+                        v.get("description", "")[:50]
+                    )
+                
+                self.console.print(table)
+        else:
+            allowed_str = ", ".join(allowed[:5]) if allowed else "GET, HEAD"
+            self.console.print(f"[green]HTTP Methods: No dangerous methods found (Allowed: {allowed_str})[/green]")
 
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
