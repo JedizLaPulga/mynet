@@ -59,6 +59,7 @@ class OutputHandler:
             "CORS Scanner": self._render_cors,
             "API Scanner": self._render_api,
             "Screenshot Capture": self._render_screenshots,
+            "Open Redirect Scanner": self._render_redirects,
         }
 
         for host, data in results.items(): 
@@ -829,6 +830,77 @@ class OutputHandler:
             
             self.console.print(table)
 
+    def _render_redirects(self, data: Dict[str, Any]):
+        if not data: return
+        if "error" in data:
+            self.console.print(f"[red]Open Redirect Error: {data['error']}[/red]")
+            return
+        
+        if data.get("vulnerable"):
+            vulns = data.get("vulnerabilities", [])
+            
+            # Count by severity
+            high = len([v for v in vulns if v.get("severity") == "high"])
+            medium = len([v for v in vulns if v.get("severity") == "medium"])
+            low = len([v for v in vulns if v.get("severity") == "low"])
+            
+            # Summary panel
+            summary_lines = [
+                f"[bold red]VULNERABLE: {len(vulns)} open redirect(s) found[/bold red]",
+                f"High: [red]{high}[/red] | Medium: [yellow]{medium}[/yellow] | Low: [dim]{low}[/dim]",
+            ]
+            
+            if data.get("oauth_context"):
+                summary_lines.append("[yellow]⚠ OAuth/SSO context detected - higher risk![/yellow]")
+            
+            summary_lines.append(f"[dim]Tested {data.get('tested_params', 0)} params × {data.get('tested_payloads', 0)} payloads[/dim]")
+            
+            self.console.print(Panel(
+                "\n".join(summary_lines),
+                title="Open Redirect Scanner",
+                border_style="red",
+                expand=False
+            ))
+            
+            # Vulnerabilities table
+            if vulns:
+                table = Table(title="Redirect Vulnerabilities", show_header=True)
+                table.add_column("Parameter", style="cyan")
+                table.add_column("Payload Type", style="dim")
+                table.add_column("Severity", style="bold")
+                table.add_column("Redirects To", style="yellow")
+                
+                for v in vulns[:10]:
+                    sev = v.get("severity", "")
+                    sev_style = "red" if sev == "high" else "yellow" if sev == "medium" else "dim"
+                    location = v.get("location", "")[:50]
+                    
+                    table.add_row(
+                        v.get("param", ""),
+                        v.get("payload_type", ""),
+                        f"[{sev_style}]{sev.upper()}[/{sev_style}]",
+                        location
+                    )
+                
+                if len(vulns) > 10:
+                    table.add_row(f"... and {len(vulns) - 10} more", "", "", "")
+                
+                self.console.print(table)
+            
+            # Recommendations
+            recs = data.get("recommendations", [])
+            if recs:
+                table = Table(title="Recommendations", show_header=False)
+                table.add_column("Priority", style="bold", width=10)
+                table.add_column("Recommendation", style="dim")
+                for r in recs[:4]:
+                    p = r.get("priority", "")
+                    p_style = "red" if p == "critical" else "yellow" if p == "high" else "cyan"
+                    table.add_row(f"[{p_style}]{p.upper()}[/{p_style}]", r.get("recommendation", ""))
+                self.console.print(table)
+        else:
+            tested = data.get("tested_params", 0) * data.get("tested_payloads", 0)
+            self.console.print(f"[green]Open Redirect: No vulnerabilities found ({tested} tests)[/green]")
 
     def _save_to_file(self, results: Dict[str, Any], file_path: str, output_format: str):
         # Determine format from file extension if possible, else use output_format or default to json
