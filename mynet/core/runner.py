@@ -1,16 +1,45 @@
 import asyncio
 import importlib
 import pkgutil
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Set
 from .config import Config
 from .input_parser import Target
 from ..modules.base import BaseModule
 import mynet.modules
 
+
 class Runner:
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        include_modules: Optional[List[str]] = None,
+        exclude_modules: Optional[List[str]] = None,
+    ):
         self.config = config
+        self.include_modules = self._normalize_names(include_modules)
+        self.exclude_modules = self._normalize_names(exclude_modules)
         self.modules: List[BaseModule] = self._load_modules()
+
+    def _normalize_names(self, names: Optional[List[str]]) -> Set[str]:
+        """Normalize module names to lowercase for case-insensitive matching."""
+        if not names:
+            return set()
+        return {name.lower().strip() for name in names}
+
+    def _should_load_module(self, module_name: str) -> bool:
+        """Check if a module should be loaded based on include/exclude filters."""
+        name_lower = module_name.lower()
+        
+        # If include list is specified, module must be in it
+        if self.include_modules:
+            return name_lower in self.include_modules
+        
+        # If exclude list is specified, module must not be in it
+        if self.exclude_modules:
+            return name_lower not in self.exclude_modules
+        
+        # No filters, load all
+        return True
 
     def _load_modules(self) -> List[BaseModule]:
         modules = []
@@ -20,19 +49,60 @@ class Runner:
         prefix = package.__name__ + "."
         
         if hasattr(package, "__path__"):
-             for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
-                if name.endswith("base"): continue
+            for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
+                if name.endswith("base"):
+                    continue
                 try:
                     mod = importlib.import_module(name)
                     # Find BaseModule subclasses
                     for attr_name in dir(mod):
                         attr = getattr(mod, attr_name)
                         if isinstance(attr, type) and issubclass(attr, BaseModule) and attr is not BaseModule:
-                            modules.append(attr(self.config))
+                            instance = attr(self.config)
+                            # Apply include/exclude filters
+                            if self._should_load_module(instance.name):
+                                modules.append(instance)
                 except Exception as e:
                     print(f"Failed to load module {name}: {e}")
                 
         return modules
+
+    @staticmethod
+    def list_available_modules() -> List[Dict[str, str]]:
+        """
+        List all available scanner modules without instantiating them fully.
+        Returns list of dicts with 'name' and 'description'.
+        """
+        modules_info = []
+        package = mynet.modules
+        prefix = package.__name__ + "."
+        
+        if hasattr(package, "__path__"):
+            for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
+                if name.endswith("base"):
+                    continue
+                try:
+                    mod = importlib.import_module(name)
+                    for attr_name in dir(mod):
+                        attr = getattr(mod, attr_name)
+                        if isinstance(attr, type) and issubclass(attr, BaseModule) and attr is not BaseModule:
+                            # Create minimal config to get module info
+                            from .config import Config
+                            temp_config = Config()
+                            instance = attr(temp_config)
+                            modules_info.append({
+                                "name": instance.name,
+                                "description": instance.description,
+                                "class": attr.__name__,
+                            })
+                except Exception:
+                    pass
+                    
+        return sorted(modules_info, key=lambda x: x["name"])
+
+    def get_loaded_module_names(self) -> List[str]:
+        """Return list of currently loaded module names."""
+        return [mod.name for mod in self.modules]
 
     async def run_scan(self, targets: List[Target]):
         """
