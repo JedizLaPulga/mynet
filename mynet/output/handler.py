@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import json
 import csv
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.json import JSON
+from rich.columns import Columns
+from rich.text import Text
 from rich import print as rprint
+from ..core.severity import SeverityScorer, SeveritySummary, Severity, Finding
 
 class OutputHandler:
     def __init__(self, console: Console):
@@ -32,6 +35,9 @@ class OutputHandler:
         rprint(JSON(json_output))
 
     def _print_table(self, results: Dict[str, Any]):
+        # Generate and display severity summary first
+        self._render_severity_summary(results)
+        
         # Registry of renderers for specific modules
         renderers = {
             "DNS Scanner": self._render_dns,
@@ -78,6 +84,86 @@ class OutputHandler:
                     self._render_generic(module_name, scan_data)
             
             self.console.print("")
+    
+    def _render_severity_summary(self, results: Dict[str, Any]):
+        """Render the risk summary dashboard at the top of output."""
+        scorer = SeverityScorer()
+        summary = scorer.analyze(results)
+        
+        # Skip if no findings
+        if summary.total == 0:
+            self.console.print(Panel(
+                "[bold green]✓ No security findings detected[/bold green]",
+                title="🛡️ Risk Summary",
+                border_style="green",
+                expand=False
+            ))
+            self.console.print("")
+            return
+        
+        # Build severity counts display
+        severity_parts = []
+        
+        if summary.critical > 0:
+            severity_parts.append(f"[bold red]🔴 Critical: {summary.critical}[/bold red]")
+        if summary.high > 0:
+            severity_parts.append(f"[red]🟠 High: {summary.high}[/red]")
+        if summary.medium > 0:
+            severity_parts.append(f"[yellow]🟡 Medium: {summary.medium}[/yellow]")
+        if summary.low > 0:
+            severity_parts.append(f"[cyan]🔵 Low: {summary.low}[/cyan]")
+        if summary.info > 0:
+            severity_parts.append(f"[dim]⚪ Info: {summary.info}[/dim]")
+        
+        # Risk score bar
+        risk_score = summary.risk_score
+        bar_width = 20
+        filled = int((risk_score / 100) * bar_width)
+        
+        if risk_score >= 70:
+            bar_color = "red"
+        elif risk_score >= 40:
+            bar_color = "yellow"
+        else:
+            bar_color = "green"
+        
+        bar = f"[{bar_color}]{'█' * filled}[/{bar_color}]" + f"[dim]{'░' * (bar_width - filled)}[/dim]"
+        
+        # Build panel content
+        content_lines = [
+            f"[bold]Risk Level: [{summary.risk_color}]{summary.risk_level}[/{summary.risk_color}][/bold]",
+            f"Risk Score: {bar} [{bar_color}]{risk_score}%[/{bar_color}]",
+            "",
+            "  ".join(severity_parts),
+            f"",
+            f"[dim]Total Findings: {summary.total}[/dim]",
+        ]
+        
+        self.console.print(Panel(
+            "\n".join(content_lines),
+            title="🛡️ Risk Summary",
+            border_style=summary.risk_color.replace("bold ", ""),
+            expand=False
+        ))
+        
+        # Show top critical/high findings preview
+        critical_high = [f for f in summary.findings if f.severity in (Severity.CRITICAL, Severity.HIGH)]
+        if critical_high:
+            table = Table(title="⚠️ Priority Findings", show_header=True, border_style="red")
+            table.add_column("Severity", style="bold", width=10)
+            table.add_column("Module", style="cyan", width=25)
+            table.add_column("Finding", style="white")
+            
+            for finding in critical_high[:5]:
+                sev_text = f"[{finding.severity.color}]{finding.severity.name}[/{finding.severity.color}]"
+                table.add_row(sev_text, finding.module, finding.title)
+            
+            if len(critical_high) > 5:
+                table.add_row("", "", f"[dim]... and {len(critical_high) - 5} more[/dim]")
+            
+            self.console.print(table)
+        
+        self.console.print("")
 
     def _render_generic(self, title: str, data: Any):
         if isinstance(data, dict) and "error" in data:
