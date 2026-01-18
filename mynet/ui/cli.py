@@ -18,6 +18,97 @@ from ..core.runner import Runner
 app = typer.Typer(help="MyNet - High Performance Network Scanner")
 console = Console()
 
+# Predefined scan profiles for common use cases
+SCAN_PROFILES = {
+    "quick": {
+        "description": "Fast basic reconnaissance (5 modules)",
+        "modules": [
+            "HTTP Scanner",
+            "DNS Scanner",
+            "Port Scanner",
+            "SSL Scanner",
+            "Tech Fingerprinter",
+        ],
+        "concurrency": 100,
+        "timeout": 3,
+    },
+    "stealth": {
+        "description": "Low-noise passive scanning (7 modules)",
+        "modules": [
+            "DNS Scanner",
+            "SSL Scanner",
+            "Whois Scanner",
+            "CRT.sh Scanner",
+            "Robots & Sitemap Scanner",
+            "Security Headers",
+            "Tech Fingerprinter",
+        ],
+        "concurrency": 10,
+        "timeout": 10,
+    },
+    "web": {
+        "description": "Web application security focus (12 modules)",
+        "modules": [
+            "HTTP Scanner",
+            "SSL Scanner",
+            "Security Headers",
+            "WAF Detection",
+            "CORS Scanner",
+            "API Scanner",
+            "JS Secret Scanner",
+            "Sensitive File Fuzzer",
+            "Dir Enumerator",
+            "Open Redirect Scanner",
+            "HTTP Method Scanner",
+            "Host Header Injection",
+        ],
+        "concurrency": 50,
+        "timeout": 5,
+    },
+    "network": {
+        "description": "Network infrastructure focus (8 modules)",
+        "modules": [
+            "DNS Scanner",
+            "Port Scanner",
+            "Whois Scanner",
+            "Traceroute Scanner",
+            "Zone Transfer Scanner",
+            "SSL Scanner",
+            "Subdomain Scanner",
+            "Subdomain Takeover",
+        ],
+        "concurrency": 50,
+        "timeout": 10,
+    },
+    "recon": {
+        "description": "Maximum reconnaissance gathering (14 modules)",
+        "modules": [
+            "DNS Scanner",
+            "Whois Scanner",
+            "CRT.sh Scanner",
+            "Subdomain Scanner",
+            "Tech Fingerprinter",
+            "Wayback Machine Scanner",
+            "Email Harvester",
+            "Cloud Asset Enumerator",
+            "Robots & Sitemap Scanner",
+            "Web Crawler",
+            "JS Secret Scanner",
+            "Sensitive File Fuzzer",
+            "Dir Enumerator",
+            "API Scanner",
+        ],
+        "concurrency": 30,
+        "timeout": 10,
+    },
+    "full": {
+        "description": "All modules enabled (comprehensive scan)",
+        "modules": None,  # None means all modules
+        "concurrency": 50,
+        "timeout": 5,
+    },
+}
+
 
 @app.command()
 def scan(
@@ -31,17 +122,43 @@ def scan(
     save_baseline: str = typer.Option(None, "--save-baseline", "-b", help="Save results as baseline for future diffs"),
     modules: str = typer.Option(None, "--modules", "-m", help="Comma-separated list of modules to run (e.g. 'WAF Detection,Port Scanner')"),
     exclude_modules: str = typer.Option(None, "--exclude-modules", "-x", help="Comma-separated list of modules to exclude"),
+    profile: str = typer.Option(None, "--profile", "-p", help="Use a predefined scan profile (quick, stealth, web, network, recon, full)"),
 ):
     """
     Run a complete scan on the target.
+    
+    Use --profile for predefined scan configurations:
+      quick   - Fast basic recon (5 modules)
+      stealth - Low-noise passive scan (7 modules)
+      web     - Web app security focus (12 modules)
+      network - Infrastructure focus (8 modules)
+      recon   - Max reconnaissance (14 modules)
+      full    - All modules enabled
     
     Use --modules to run specific scanners only (comma-separated names).
     Use --exclude-modules to skip certain scanners.
     Use --diff to compare against a previous scan baseline.
     Use --save-baseline to save current results for future comparisons.
     
+    Run 'mynet profiles' to see all available scan profiles.
     Run 'mynet modules' to see all available scanner modules.
     """
+    # Handle profile selection
+    if profile:
+        if profile.lower() not in SCAN_PROFILES:
+            console.print(f"[red]Unknown profile: {profile}[/red]")
+            console.print(f"[dim]Available profiles: {', '.join(SCAN_PROFILES.keys())}[/dim]")
+            raise typer.Exit(code=1)
+        
+        profile_config = SCAN_PROFILES[profile.lower()]
+        console.print(f"[cyan]Using profile: {profile} - {profile_config['description']}[/cyan]")
+        
+        # Apply profile settings (CLI args override profile)
+        if modules is None:
+            modules = ','.join(profile_config['modules']) if profile_config['modules'] else None
+        concurrency = concurrency if concurrency != 50 else profile_config['concurrency']
+        timeout = timeout if timeout != 5 else profile_config['timeout']
+    
     # 1. Configuration
     port_list = [int(p) for p in ports.split(",")] if ports else None
     config = Config(
@@ -131,6 +248,48 @@ def list_modules():
     console.print("  mynet scan example.com --modules 'WAF Detection,Port Scanner'")
     console.print("\n  [dim]# Exclude slow modules:[/dim]")
     console.print("  mynet scan example.com --exclude-modules 'Screenshot Capture,Web Crawler'")
+
+
+@app.command(name="profiles")
+def list_profiles():
+    """
+    List all available scan profiles.
+    
+    Profiles are predefined module combinations optimized for different use cases.
+    """
+    table = Table(title="Available Scan Profiles", show_header=True)
+    table.add_column("Profile", style="cyan bold", width=10)
+    table.add_column("Description", style="white")
+    table.add_column("Modules", style="dim", width=8)
+    table.add_column("Concurrency", style="green", width=12)
+    table.add_column("Timeout", style="yellow", width=8)
+    
+    for name, config in SCAN_PROFILES.items():
+        module_count = "All" if config["modules"] is None else str(len(config["modules"]))
+        table.add_row(
+            name,
+            config["description"],
+            module_count,
+            str(config["concurrency"]),
+            f"{config['timeout']}s",
+        )
+    
+    console.print(table)
+    
+    console.print("\n[cyan]Usage:[/cyan]")
+    console.print("  mynet scan example.com --profile quick")
+    console.print("  mynet scan example.com -p web")
+    
+    console.print("\n[cyan]Profile details:[/cyan]")
+    for name, config in SCAN_PROFILES.items():
+        if config["modules"]:
+            console.print(f"\n  [bold]{name}[/bold]:")
+            for mod in config["modules"][:6]:
+                console.print(f"    [dim]• {mod}[/dim]")
+            if len(config["modules"]) > 6:
+                console.print(f"    [dim]... and {len(config['modules']) - 6} more[/dim]")
+
+
 
 
 
