@@ -13,15 +13,34 @@ Track all changes made to the project here.
 
 ---
 
-## Upcoming Changes
+### 🚀 Feature: Module Selection via CLI
 
-*Changes will be logged here as we make them.*
+**What:** Users can now choose which scanner modules to run instead of running all 29.
 
-<!-- 
-Format for each change:
-### 🔧 [Type] Brief Description
-- What: Description of the change
-- Why: Rationale
-- Files: List of modified files
-- Tweet-ready: One-liner for social media
--->
+**New Options:**
+- `--modules, -m` — Run only specific modules (comma-separated)
+- `--exclude-modules, -x` — Skip certain modules
+- `mynet modules` — New command to list all available scanners
+
+**Usage Examples:**
+```bash
+# List all available modules
+python -m mynet.ui.cli modules
+
+# Run only WAF and Port scanners
+mynet scan example.com --modules "WAF Detection,Port Scanner"
+
+# Run everything except slow modules
+mynet scan example.com --exclude-modules "Screenshot Capture,Web Crawler"
+```
+
+**Files Modified:**
+- `mynet/core/runner.py` — Added module filtering logic
+- `mynet/ui/cli.py` — Added CLI options and `modules` command
+- `tests/test_module_filtering.py` — New test file with 8 tests
+
+**Tests:** 8 new tests, all passing ✅
+
+---
+
+
