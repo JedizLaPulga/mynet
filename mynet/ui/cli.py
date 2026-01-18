@@ -9,6 +9,7 @@ from rich import print as rprint
 import json
 import time
 import os
+from typing import Optional, List
 
 from ..core.config import Config
 from ..core.input_parser import parse_input
@@ -16,6 +17,7 @@ from ..core.runner import Runner
 
 app = typer.Typer(help="MyNet - High Performance Network Scanner")
 console = Console()
+
 
 @app.command()
 def scan(
@@ -27,12 +29,18 @@ def scan(
     file_: str = typer.Option(None, "--file", "-f", help="Save output to file"),
     diff: str = typer.Option(None, "--diff", "-d", help="Compare against baseline JSON file"),
     save_baseline: str = typer.Option(None, "--save-baseline", "-b", help="Save results as baseline for future diffs"),
+    modules: str = typer.Option(None, "--modules", "-m", help="Comma-separated list of modules to run (e.g. 'WAF Detection,Port Scanner')"),
+    exclude_modules: str = typer.Option(None, "--exclude-modules", "-x", help="Comma-separated list of modules to exclude"),
 ):
     """
     Run a complete scan on the target.
     
+    Use --modules to run specific scanners only (comma-separated names).
+    Use --exclude-modules to skip certain scanners.
     Use --diff to compare against a previous scan baseline.
     Use --save-baseline to save current results for future comparisons.
+    
+    Run 'mynet modules' to see all available scanner modules.
     """
     # 1. Configuration
     port_list = [int(p) for p in ports.split(",")] if ports else None
@@ -41,6 +49,10 @@ def scan(
         timeout=timeout,
         ports=port_list
     )
+    
+    # Parse module filters
+    include_modules = [m.strip() for m in modules.split(",")] if modules else None
+    exclude_modules_list = [m.strip() for m in exclude_modules.split(",")] if exclude_modules else None
     
     # 2. Parse Input
     console.print(Panel(f"[bold blue]MyNet Scanner[/bold blue]\nTarget: {target}", border_style="blue"))
@@ -53,8 +65,19 @@ def scan(
     
     console.print(f"[green]Parsed {len(target_list)} targets.[/green]")
 
-    # 3. Initialize Runner
-    runner = Runner(config)
+    # 3. Initialize Runner with module filters
+    runner = Runner(
+        config,
+        include_modules=include_modules,
+        exclude_modules=exclude_modules_list,
+    )
+    
+    # Show which modules are loaded
+    loaded_modules = runner.get_loaded_module_names()
+    if include_modules or exclude_modules_list:
+        console.print(f"[cyan]Running {len(loaded_modules)} modules: {', '.join(loaded_modules[:5])}{'...' if len(loaded_modules) > 5 else ''}[/cyan]")
+    else:
+        console.print(f"[dim]Running all {len(loaded_modules)} scanner modules[/dim]")
     
     # 4. Run Scan with Spinner
     results = {}
@@ -76,6 +99,40 @@ def scan(
         from ..core.differ import save_baseline as save_bl
         save_bl(results, save_baseline)
         console.print(f"[blue]Baseline saved to {save_baseline}[/blue]")
+
+
+@app.command(name="modules")
+def list_modules():
+    """
+    List all available scanner modules.
+    
+    Shows module names that can be used with --modules and --exclude-modules options.
+    """
+    modules_info = Runner.list_available_modules()
+    
+    table = Table(title="Available Scanner Modules", show_header=True)
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Module Name", style="cyan")
+    table.add_column("Description", style="white")
+    table.add_column("Class", style="dim")
+    
+    for i, mod in enumerate(modules_info, 1):
+        table.add_row(
+            str(i),
+            mod["name"],
+            mod["description"],
+            mod["class"],
+        )
+    
+    console.print(table)
+    console.print(f"\n[dim]Total: {len(modules_info)} modules available[/dim]")
+    console.print("\n[cyan]Usage examples:[/cyan]")
+    console.print("  [dim]# Run only specific modules:[/dim]")
+    console.print("  mynet scan example.com --modules 'WAF Detection,Port Scanner'")
+    console.print("\n  [dim]# Exclude slow modules:[/dim]")
+    console.print("  mynet scan example.com --exclude-modules 'Screenshot Capture,Web Crawler'")
+
+
 
 
 def _handle_diff_mode(results: dict, baseline_path: str, output_format: str):
