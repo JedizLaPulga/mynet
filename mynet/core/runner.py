@@ -1,11 +1,14 @@
 import asyncio
 import importlib
+import logging
 import pkgutil
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional, Set, Iterator, Tuple, Type
 from .config import Config
 from .input_parser import Target
 from ..modules.base import BaseModule
 import mynet.modules
+
+logger = logging.getLogger(__name__)
 
 
 class Runner:
@@ -41,63 +44,68 @@ class Runner:
         # No filters, load all
         return True
 
-    def _load_modules(self) -> List[BaseModule]:
-        modules = []
-        
-        # Iterate over all modules in mynet.modules package
+    @staticmethod
+    def _discover_module_classes() -> Iterator[Tuple[str, Type[BaseModule]]]:
+        """
+        Discover all BaseModule subclasses in mynet.modules package.
+        Yields (module_file_name, class) tuples.
+        """
         package = mynet.modules
         prefix = package.__name__ + "."
-        
-        if hasattr(package, "__path__"):
-            for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
-                if name.endswith("base"):
-                    continue
-                try:
-                    mod = importlib.import_module(name)
-                    # Find BaseModule subclasses
-                    for attr_name in dir(mod):
-                        attr = getattr(mod, attr_name)
-                        if isinstance(attr, type) and issubclass(attr, BaseModule) and attr is not BaseModule:
-                            instance = attr(self.config)
-                            # Apply include/exclude filters
-                            if self._should_load_module(instance.name):
-                                modules.append(instance)
-                except Exception as e:
-                    print(f"Failed to load module {name}: {e}")
-                
+
+        if not hasattr(package, "__path__"):
+            return
+
+        for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
+            if name.endswith("base"):
+                continue
+            try:
+                mod = importlib.import_module(name)
+                for attr_name in dir(mod):
+                    attr = getattr(mod, attr_name)
+                    if (
+                        isinstance(attr, type)
+                        and issubclass(attr, BaseModule)
+                        and attr is not BaseModule
+                    ):
+                        yield name, attr
+            except Exception as e:
+                logger.warning("Failed to import module %s: %s", name, e)
+
+    def _load_modules(self) -> List[BaseModule]:
+        """Load and instantiate all scanner modules, applying filters."""
+        modules = []
+
+        for module_name, cls in self._discover_module_classes():
+            try:
+                instance = cls(self.config)
+                if self._should_load_module(instance.name):
+                    modules.append(instance)
+            except Exception as e:
+                logger.error("Failed to instantiate %s: %s", cls.__name__, e)
+
         return modules
 
     @staticmethod
     def list_available_modules() -> List[Dict[str, str]]:
         """
-        List all available scanner modules without instantiating them fully.
-        Returns list of dicts with 'name' and 'description'.
+        List all available scanner modules via class introspection.
+        Returns list of dicts with 'name', 'description', and 'class'.
         """
         modules_info = []
-        package = mynet.modules
-        prefix = package.__name__ + "."
-        
-        if hasattr(package, "__path__"):
-            for _, name, _ in pkgutil.iter_modules(package.__path__, prefix):
-                if name.endswith("base"):
-                    continue
-                try:
-                    mod = importlib.import_module(name)
-                    for attr_name in dir(mod):
-                        attr = getattr(mod, attr_name)
-                        if isinstance(attr, type) and issubclass(attr, BaseModule) and attr is not BaseModule:
-                            # Create minimal config to get module info
-                            from .config import Config
-                            temp_config = Config()
-                            instance = attr(temp_config)
-                            modules_info.append({
-                                "name": instance.name,
-                                "description": instance.description,
-                                "class": attr.__name__,
-                            })
-                except Exception:
-                    pass
-                    
+        temp_config = Config()
+
+        for _, cls in Runner._discover_module_classes():
+            try:
+                instance = cls(temp_config)
+                modules_info.append({
+                    "name": instance.name,
+                    "description": instance.description,
+                    "class": cls.__name__,
+                })
+            except Exception as e:
+                logger.warning("Could not introspect %s: %s", cls.__name__, e)
+
         return sorted(modules_info, key=lambda x: x["name"])
 
     def get_loaded_module_names(self) -> List[str]:
