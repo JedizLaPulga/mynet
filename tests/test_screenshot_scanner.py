@@ -48,10 +48,10 @@ class TestScreenshotScanner(unittest.TestCase):
 
     def test_viewport_settings(self):
         """Test viewport dimensions are set correctly."""
-        self.assertEqual(self.scanner.desktop_viewport["width"], 1920)
-        self.assertEqual(self.scanner.desktop_viewport["height"], 1080)
-        self.assertEqual(self.scanner.mobile_viewport["width"], 375)
-        self.assertEqual(self.scanner.mobile_viewport["height"], 812)
+        self.assertEqual(ScreenshotScanner.DESKTOP_VIEWPORT["width"], 1920)
+        self.assertEqual(ScreenshotScanner.DESKTOP_VIEWPORT["height"], 1080)
+        self.assertEqual(ScreenshotScanner.MOBILE_VIEWPORT["width"], 375)
+        self.assertEqual(ScreenshotScanner.MOBILE_VIEWPORT["height"], 812)
 
     # -------------------------------------------------------------------------
     # URL Helper Tests
