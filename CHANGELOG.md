@@ -4,73 +4,67 @@ Track all changes made to the project here.
 
 ---
 
-## [Session: 2026-01-18]
+## [v1.0.0] - 2026-01-20
 
-### 📋 Project Audit Complete
-- Studied entire codebase (29 scanner modules)
-- Ran full test suite: **215 tests passing** ✅
-- Documented architecture and design patterns
+### 🎉 Production Release
 
----
-
-### 🚀 Feature: Module Selection via CLI
-
-**What:** Users can now choose which scanner modules to run instead of running all 29.
-
-**New Options:**
-- `--modules, -m` — Run only specific modules (comma-separated)
-- `--exclude-modules, -x` — Skip certain modules
-- `mynet modules` — New command to list all available scanners
-
-**Usage Examples:**
-```bash
-# List all available modules
-python -m mynet.ui.cli modules
-
-# Run only WAF and Port scanners
-mynet scan example.com --modules "WAF Detection,Port Scanner"
-
-# Run everything except slow modules
-mynet scan example.com --exclude-modules "Screenshot Capture,Web Crawler"
-```
-
-**Files Modified:**
-- `mynet/core/runner.py` — Added module filtering logic
-- `mynet/ui/cli.py` — Added CLI options and `modules` command
-- `tests/test_module_filtering.py` — New test file with 8 tests
-
-**Tests:** 8 new tests, all passing ✅
+MyNet is now production-ready with proper packaging, CI/CD, and comprehensive testing.
 
 ---
 
-### 🛡️ Feature: Severity Scoring & Risk Dashboard
+### �️ Code Quality Improvements
 
-**What:** All scan findings are now classified by severity (Critical/High/Medium/Low/Info) with a visual risk dashboard displayed at the top of scan output.
+**runner.py refactored:**
+- Extracted `_discover_module_classes()` generator to eliminate duplicate code
+- Replaced `print()` statements with proper `logging` module
+- Fixed internal import placement
+- Added comprehensive type hints
 
-**Key Features:**
-- **Risk Summary Panel** — Shows overall risk level and score (0-100%)
-- **Severity Breakdown** — Color-coded counts for each severity level
-- **Priority Findings Table** — Highlights top Critical/High findings for immediate attention
-- **Smart Severity Mapping** — Each scanner module's findings are automatically classified based on impact
-
-**Severity Levels:**
-| Level | Score | Color | Example Findings |
-|-------|-------|-------|------------------|
-| 🔴 Critical | 10 | Red | Subdomain takeover, CORS with credentials, RCE CVEs |
-| 🟠 High | 8 | Orange | Zone transfer, API keys exposed, redirect poisoning |
-| 🟡 Medium | 5 | Yellow | Missing security headers, GraphQL introspection |
-| 🔵 Low | 3 | Cyan | Informational file exposure |
-| ⚪ Info | 1 | Dim | WAF detected, open ports |
-
-**Files Created:**
-- `mynet/core/severity.py` — Severity scoring engine with module-specific rules
-- `tests/test_severity.py` — 23 comprehensive tests
-
-**Files Modified:**
-- `mynet/output/handler.py` — Added risk summary panel and priority findings table
-
-**Tests:** 23 new tests, all passing ✅
+**screenshot_scanner.py cleaned:**
+- Moved magic viewport numbers to class constants (`DESKTOP_VIEWPORT`, `MOBILE_VIEWPORT`)
+- Added `logging.debug()` to silent exception handlers
+- Switched from `md5` to `sha256` for URL hashing
 
 ---
 
+### � Packaging & Distribution
 
+**Added `pyproject.toml`:**
+- Version: `1.0.0`
+- Build system: Hatchling
+- Pinned dependencies with version ranges
+- Optional extras: `[screenshots]`, `[dev]`, `[all]`
+- CLI entrypoint: `mynet` command
+- Ruff linting configuration
+- Pytest async mode configuration
+
+**Added `mynet/__init__.py`:**
+- `__version__ = "1.0.0"` for runtime version access
+
+---
+
+### � CI/CD Pipeline
+
+**Added `.github/workflows/ci.yml`:**
+- Matrix testing: Python 3.10, 3.11, 3.12, 3.13
+- Multi-OS: Ubuntu, Windows, macOS
+- Ruff linting and formatting checks
+- Triggers on push/PR to main/master
+
+---
+
+### 📝 Documentation
+
+**Updated `README.md`:**
+- Fixed test badge: 115 → 246 tests
+- Fixed module badge: 27 → 28 modules
+
+---
+
+### 📊 Test Summary
+
+- **Total tests:** 246
+- **All passing:** ✅
+- **Test files:** 21
+
+---
