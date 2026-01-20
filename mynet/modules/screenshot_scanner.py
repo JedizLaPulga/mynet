@@ -16,6 +16,7 @@ Features:
 
 import asyncio
 import hashlib
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -33,8 +34,15 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
 
+logger = logging.getLogger(__name__)
+
+
 class ScreenshotScanner(BaseModule):
     """Captures webpage screenshots for visual reconnaissance."""
+
+    # Viewport presets
+    DESKTOP_VIEWPORT = {"width": 1920, "height": 1080}
+    MOBILE_VIEWPORT = {"width": 375, "height": 812}  # iPhone X dimensions
 
     def __init__(self, config):
         super().__init__(config)
@@ -47,10 +55,6 @@ class ScreenshotScanner(BaseModule):
         self.mobile = getattr(config, 'screenshot_mobile', False)
         self.timeout = getattr(config, 'timeout', 10) * 1000  # Convert to ms
         self.quality = getattr(config, 'screenshot_quality', 80)
-
-        # Viewport settings
-        self.desktop_viewport = {"width": 1920, "height": 1080}
-        self.mobile_viewport = {"width": 375, "height": 812}  # iPhone X
 
         # Ensure output directory exists
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
@@ -90,7 +94,7 @@ class ScreenshotScanner(BaseModule):
                 try:
                     # Capture desktop screenshot
                     desktop_result = await self._capture_screenshot(
-                        browser, url, "desktop", self.desktop_viewport
+                        browser, url, "desktop", self.DESKTOP_VIEWPORT
                     )
                     if desktop_result:
                         results["screenshots"].append(desktop_result)
@@ -99,7 +103,7 @@ class ScreenshotScanner(BaseModule):
                     # Optionally capture mobile screenshot
                     if self.mobile:
                         mobile_result = await self._capture_screenshot(
-                            browser, url, "mobile", self.mobile_viewport
+                            browser, url, "mobile", self.MOBILE_VIEWPORT
                         )
                         if mobile_result:
                             results["screenshots"].append(mobile_result)
@@ -237,8 +241,8 @@ class ScreenshotScanner(BaseModule):
             # Detect dark mode
             metadata["dark_mode"] = await self._detect_dark_mode(page)
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Metadata extraction failed: %s", e)
 
         return metadata
 
@@ -269,8 +273,8 @@ class ScreenshotScanner(BaseModule):
                         technologies.append(tech)
                         break
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Technology detection failed: %s", e)
 
         return list(set(technologies))
 
@@ -294,8 +298,8 @@ class ScreenshotScanner(BaseModule):
                 luminance = (0.299 * parts[0] + 0.587 * parts[1] + 0.114 * parts[2]) / 255
                 return luminance < 0.5
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Dark mode detection failed: %s", e)
 
         return False
 
@@ -325,7 +329,7 @@ class ScreenshotScanner(BaseModule):
         hostname = parsed.hostname or "unknown"
 
         # Create hash of full URL for uniqueness
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+        url_hash = hashlib.sha256(url.encode()).hexdigest()[:8]
 
         # Timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
