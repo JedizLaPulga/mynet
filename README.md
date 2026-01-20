@@ -6,8 +6,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/tests-115%20passed-brightgreen.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/modules-27-blueviolet.svg" alt="Modules">
+  <img src="https://img.shields.io/badge/tests-246%20passed-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/modules-28-blueviolet.svg" alt="Modules">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
